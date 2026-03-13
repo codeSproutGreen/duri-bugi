@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+ledger.db
+ledger.db-*
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/

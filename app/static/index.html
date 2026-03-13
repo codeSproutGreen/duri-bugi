@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NotiLedger</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body x-data="app()" x-init="init()">
+
+<nav>
+  <a href="#" :class="{ active: page==='dashboard' }" @click.prevent="page='dashboard'">
+    대시보드
+  </a>
+  <a href="#" :class="{ active: page==='review' }" @click.prevent="page='review'; loadEntries(0)">
+    검토 대기 <span class="badge" x-show="pendingCount > 0" x-text="pendingCount"></span>
+  </a>
+  <a href="#" :class="{ active: page==='transactions' }" @click.prevent="page='transactions'; loadEntries(null)">
+    거래 내역
+  </a>
+  <a href="#" :class="{ active: page==='accounts' }" @click.prevent="page='accounts'; loadAccounts()">
+    계정과목
+  </a>
+  <a href="#" :class="{ active: page==='messages' }" @click.prevent="page='messages'; loadMessages()">
+    메시지
+  </a>
+</nav>
+
+<div class="container">
+
+  <!-- Dashboard -->
+  <template x-if="page==='dashboard'">
+    <div>
+      <h1>대시보드</h1>
+      <div class="stats">
+        <div class="card stat-card">
+          <div class="value amount-income" x-text="fmt(dash.total_asset)"></div>
+          <div class="label">총 자산</div>
+        </div>
+        <div class="card stat-card">
+          <div class="value amount-expense" x-text="fmt(dash.total_liability)"></div>
+          <div class="label">총 부채</div>
+        </div>
+        <div class="card stat-card">
+          <div class="value" x-text="fmt(dash.net_worth)"></div>
+          <div class="label">순자산</div>
+        </div>
+        <div class="card stat-card">
+          <div class="value" x-text="dash.pending_count"></div>
+          <div class="label">검토 대기</div>
+        </div>
+      </div>
+
+      <h2>수입/비용 (월별)</h2>
+      <div class="card">
+        <table>
+          <thead><tr><th>월</th><th>수입</th><th>비용</th><th>차이</th></tr></thead>
+          <tbody>
+            <template x-for="m in monthly" :key="m.month">
+              <tr>
+                <td x-text="m.month"></td>
+                <td class="amount amount-income" x-text="fmt(m.income)"></td>
+                <td class="amount amount-expense" x-text="fmt(m.expense)"></td>
+                <td class="amount" :class="m.income-m.expense>=0?'amount-income':'amount-expense'"
+                    x-text="fmt(m.income - m.expense)"></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>계정별 잔액</h2>
+      <template x-for="type in ['asset','liability','income','expense']" :key="type">
+        <div class="card" style="margin-bottom:8px">
+          <h2 x-text="typeLabel(type)" style="margin-bottom:8px"></h2>
+          <template x-for="a in dash.accounts.filter(x=>x.type===type)" :key="a.id">
+            <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px">
+              <span><span style="color:var(--text-muted);margin-right:8px" x-text="a.code"></span><span x-text="a.name"></span></span>
+              <span class="amount" x-text="fmt(a.balance)"></span>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- Review -->
+  <template x-if="page==='review'">
+    <div>
+      <h1>검토 대기</h1>
+      <template x-if="entries.length===0">
+        <div class="card" style="text-align:center;color:var(--text-muted);padding:40px">
+          검토할 항목이 없습니다
+        </div>
+      </template>
+      <template x-for="e in entries" :key="e.id">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <strong x-text="e.description"></strong>
+              <span style="color:var(--text-muted);margin-left:8px" x-text="e.entry_date"></span>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-sm btn-success" @click="confirmEntry(e.id)">승인</button>
+              <button class="btn btn-sm btn-outline" @click="editingEntry=e; showEditModal=true">수정</button>
+              <button class="btn btn-sm btn-danger" @click="rejectEntry(e.id)">거부</button>
+            </div>
+          </div>
+          <template x-for="l in e.lines" :key="l.id">
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:2px 0">
+              <span>
+                <span style="color:var(--text-muted)" x-text="l.account_code"></span>
+                <span x-text="l.account_name"></span>
+              </span>
+              <span>
+                <span x-show="l.debit>0" class="amount" x-text="'차변 '+fmt(l.debit)"></span>
+                <span x-show="l.credit>0" class="amount" x-text="'대변 '+fmt(l.credit)"></span>
+              </span>
+            </div>
+          </template>
+          <div x-show="e.raw_content" class="raw-msg" x-text="e.raw_content"></div>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- Transactions -->
+  <template x-if="page==='transactions'">
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h1 style="margin:0">거래 내역</h1>
+        <button class="btn btn-primary" @click="newEntry(); showEditModal=true">+ 수동 입력</button>
+      </div>
+      <div style="margin-bottom:12px">
+        <input type="text" placeholder="검색..." x-model="searchQuery"
+               @input.debounce.300ms="loadEntries(null)">
+      </div>
+      <div class="card" style="padding:0;overflow-x:auto">
+        <table>
+          <thead><tr><th>날짜</th><th>설명</th><th>금액</th><th>차변</th><th>대변</th><th>상태</th></tr></thead>
+          <tbody>
+            <template x-for="e in entries" :key="e.id">
+              <tr style="cursor:pointer" @click="editingEntry=e; showEditModal=true">
+                <td x-text="e.entry_date"></td>
+                <td x-text="e.description"></td>
+                <td class="amount" x-text="fmt(e.lines.reduce((s,l)=>s+l.debit,0))"></td>
+                <td style="font-size:13px" x-text="e.lines.filter(l=>l.debit>0).map(l=>l.account_name).join(', ')"></td>
+                <td style="font-size:13px" x-text="e.lines.filter(l=>l.credit>0).map(l=>l.account_name).join(', ')"></td>
+                <td><span class="tag" :class="e.is_confirmed?'tag-approved':'tag-pending'"
+                      x-text="e.is_confirmed?'확정':'대기'"></span></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </template>
+
+  <!-- Accounts -->
+  <template x-if="page==='accounts'">
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h1 style="margin:0">계정과목</h1>
+        <button class="btn btn-primary" @click="editingAcct={code:'',name:'',type:'expense'}; showAcctModal=true">
+          + 계정 추가
+        </button>
+      </div>
+      <div class="tabs">
+        <template x-for="t in ['asset','liability','equity','income','expense']" :key="t">
+          <div class="tab" :class="acctTab===t?'active':''" @click="acctTab=t" x-text="typeLabel(t)"></div>
+        </template>
+      </div>
+      <div class="card" style="padding:0">
+        <table>
+          <thead><tr><th>코드</th><th>이름</th><th>잔액</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="a in (acctList[acctTab]||[])" :key="a.id">
+              <tr>
+                <td x-text="a.code"></td>
+                <td x-text="a.name"></td>
+                <td class="amount" x-text="fmt(a.balance||0)"></td>
+                <td><button class="btn btn-sm btn-outline" @click="editingAcct=a; showAcctModal=true">수정</button></td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </template>
+
+  <!-- Messages -->
+  <template x-if="page==='messages'">
+    <div>
+      <h1>수신 메시지</h1>
+      <div class="tabs" style="margin-bottom:12px">
+        <template x-for="s in [null,'pending','parsed','approved','rejected','failed']" :key="s">
+          <div class="tab" :class="msgFilter===s?'active':''"
+               @click="msgFilter=s; loadMessages()"
+               x-text="s||'전체'"></div>
+        </template>
+      </div>
+      <template x-for="m in messages" :key="m.id">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <strong x-text="m.source_name"></strong>
+              <span class="tag" :class="'tag-'+m.status" x-text="m.status" style="margin-left:8px"></span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span style="font-size:12px;color:var(--text-muted)" x-text="fmtTime(m.timestamp)"></span>
+              <button class="btn btn-sm btn-outline" @click="reparseMsg(m.id)">재파싱</button>
+            </div>
+          </div>
+          <div class="raw-msg" x-text="m.content"></div>
+          <div x-show="m.ai_result" style="margin-top:6px;font-size:12px;color:var(--text-muted)"
+               x-text="m.ai_result"></div>
+        </div>
+      </template>
+    </div>
+  </template>
+
+</div>
+
+<!-- Edit Entry Modal -->
+<template x-if="showEditModal">
+  <div class="modal-bg" @click.self="showEditModal=false">
+    <div class="modal">
+      <h2 x-text="editingEntry.id ? '거래 수정' : '수동 입력'"></h2>
+      <div class="form-group">
+        <label>날짜</label>
+        <input type="date" x-model="editingEntry.entry_date">
+      </div>
+      <div class="form-group">
+        <label>설명</label>
+        <input type="text" x-model="editingEntry.description" placeholder="스타벅스 카드결제">
+      </div>
+      <div class="form-group">
+        <label>메모</label>
+        <input type="text" x-model="editingEntry.memo">
+      </div>
+      <div class="form-group">
+        <label>금액</label>
+        <input type="number" x-model.number="editAmount" placeholder="15000">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>차변 (지출 항목)</label>
+          <select x-model.number="editDebitAcct">
+            <template x-for="a in allAccounts" :key="a.id">
+              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            </template>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>대변 (결제 수단)</label>
+          <select x-model.number="editCreditAcct">
+            <template x-for="a in allAccounts" :key="a.id">
+              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            </template>
+          </select>
+        </div>
+      </div>
+      <div x-show="editingEntry.raw_content" class="raw-msg" style="margin-bottom:12px"
+           x-text="editingEntry.raw_content"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" @click="showEditModal=false">취소</button>
+        <template x-if="editingEntry.id && !editingEntry.is_confirmed">
+          <button class="btn btn-danger" @click="rejectEntry(editingEntry.id); showEditModal=false">거부</button>
+        </template>
+        <button class="btn btn-primary" @click="saveEntry()">저장</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Account Modal -->
+<template x-if="showAcctModal">
+  <div class="modal-bg" @click.self="showAcctModal=false">
+    <div class="modal">
+      <h2 x-text="editingAcct.id ? '계정 수정' : '계정 추가'"></h2>
+      <div class="form-group">
+        <label>코드</label>
+        <input type="text" x-model="editingAcct.code" placeholder="5070">
+      </div>
+      <div class="form-group">
+        <label>이름</label>
+        <input type="text" x-model="editingAcct.name" placeholder="문화생활">
+      </div>
+      <div class="form-group">
+        <label>유형</label>
+        <select x-model="editingAcct.type">
+          <option value="asset">자산</option>
+          <option value="liability">부채</option>
+          <option value="equity">자본</option>
+          <option value="income">수입</option>
+          <option value="expense">비용</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" @click="showAcctModal=false">취소</button>
+        <button class="btn btn-primary" @click="saveAcct()">저장</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script src="/app.js"></script>
+</body>
+</html>
