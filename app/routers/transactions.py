@@ -1,13 +1,14 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import JournalEntry, JournalLine, RawMessage, CategoryRule, Account
 from app.schemas import EntryCreate, EntryUpdate, EntryOut, JournalLineOut
 from app.services.ledger import validate_entry_balance
+from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["transactions"])
 log = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ def get_entry(entry_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/entries")
-def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
+def create_entry(data: EntryCreate, request: Request, db: Session = Depends(get_db)):
     line_dicts = [l.model_dump() for l in data.lines]
     if not validate_entry_balance(line_dicts):
         raise HTTPException(400, "Debit and credit totals must match and be > 0")
@@ -79,6 +80,8 @@ def create_entry(data: EntryCreate, db: Session = Depends(get_db)):
         entry_date=data.entry_date,
         description=data.description,
         memo=data.memo,
+        source="web",
+        created_by=get_current_user(request),
         is_confirmed=1,  # Manual entries are confirmed immediately
     )
     db.add(entry)

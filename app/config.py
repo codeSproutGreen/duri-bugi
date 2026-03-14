@@ -6,7 +6,8 @@ class Settings(BaseSettings):
     auth_token: str = "change-me"
     webhook_secret: str = ""
     database_url: str = "sqlite:///ledger.db"
-    app_pin: str = ""  # PIN for web access (leave empty to disable)
+    app_pin: str = ""  # Deprecated: single PIN (kept for backward compat)
+    app_pins: str = ""  # Multi-user PINs, format: "1234:아내,5678:남편"
     session_secret: str = "noti-ledger-session-secret"  # secret for signing cookies
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

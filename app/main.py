@@ -12,7 +12,7 @@ from app.config import settings
 from app.database import engine, SessionLocal, Base
 from app.models import Account
 from app.routers import webhook, messages, transactions, accounts, dashboard, rules, auth
-from app.routers.auth import verify_token
+from app.routers.auth import verify_token, _pin_enabled
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -55,9 +55,23 @@ def seed_accounts():
         db.close()
 
 
+def migrate_db():
+    """Add new columns to existing tables if missing."""
+    from sqlalchemy import text, inspect
+    with engine.connect() as conn:
+        columns = [c["name"] for c in inspect(engine).get_columns("journal_entries")]
+        if "source" not in columns:
+            conn.execute(text("ALTER TABLE journal_entries ADD COLUMN source TEXT NOT NULL DEFAULT 'web'"))
+            conn.commit()
+        if "created_by" not in columns:
+            conn.execute(text("ALTER TABLE journal_entries ADD COLUMN created_by TEXT NOT NULL DEFAULT ''"))
+            conn.commit()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    migrate_db()
     seed_accounts()
     yield
 
@@ -78,7 +92,7 @@ class PinAuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         # Skip if PIN not configured
-        if not settings.app_pin:
+        if not _pin_enabled():
             return await call_next(request)
         # Allow auth endpoints, static files, and webhook (from Android app)
         path = request.url.path
@@ -90,7 +104,8 @@ class PinAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         # Check session cookie
         token = request.cookies.get("noti_session")
-        if not verify_token(token):
+        valid, _ = verify_token(token)
+        if not valid:
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
         return await call_next(request)
 

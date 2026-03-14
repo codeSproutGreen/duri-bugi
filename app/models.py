@@ -59,6 +59,8 @@ class JournalEntry(Base):
     description = Column(Text, nullable=False)
     memo = Column(Text, nullable=False, default="")
     raw_message_id = Column(Integer, ForeignKey("raw_messages.id"), nullable=True)
+    source = Column(Text, nullable=False, default="web")  # web, webhook, api
+    created_by = Column(Text, nullable=False, default="")  # user name from PIN login
     is_confirmed = Column(Integer, nullable=False, default=0)
     created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
     updated_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())

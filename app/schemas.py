@@ -81,6 +81,8 @@ class EntryOut(BaseModel):
     description: str
     memo: str
     raw_message_id: int | None
+    source: str = "web"
+    created_by: str = ""
     is_confirmed: int
     created_at: str
     lines: list[JournalLineOut] = []

@@ -12,6 +12,7 @@ function app() {
     pinInput: '',
     pinError: '',
     pinLocked: false,
+    currentUser: '',
 
     // Dashboard
     dash: { total_asset: 0, total_liability: 0, total_income: 0, total_expense: 0, net_worth: 0, accounts: [], pending_count: 0 },
@@ -67,6 +68,7 @@ function app() {
       const auth = await authRes.json();
       this.pinRequired = auth.pin_required;
       this.pinAuthenticated = auth.authenticated;
+      this.currentUser = auth.user || '';
       if (!this.pinRequired || this.pinAuthenticated) {
         this.applyPeriod();
         await this.loadDashboard();
@@ -99,6 +101,7 @@ function app() {
       const data = await res.json();
       if (data.success) {
         this.pinAuthenticated = true;
+        this.currentUser = data.user || '';
         this.pinError = '';
         this.pinInput = '';
         this.applyPeriod();
