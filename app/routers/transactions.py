@@ -189,6 +189,16 @@ def reject_entry(entry_id: int, db: Session = Depends(get_db)):
     return {"status": "rejected"}
 
 
+@router.delete("/entries/{entry_id}")
+def delete_entry(entry_id: int, db: Session = Depends(get_db)):
+    entry = db.query(JournalEntry).get(entry_id)
+    if not entry:
+        raise HTTPException(404, "Entry not found")
+    db.delete(entry)
+    db.commit()
+    return {"status": "deleted"}
+
+
 def _upsert_category_rule(db: Session, merchant: str, lines: list[JournalLine]):
     """Create or update a category rule based on confirmed entry."""
     debit_line = next((l for l in lines if l.debit > 0), None)

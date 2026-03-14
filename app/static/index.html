@@ -257,7 +257,10 @@
                     <td class="amount" x-text="fmt(e.lines.reduce((s,l)=>s+l.debit,0))"></td>
                     <td style="font-size:13px" x-text="e.lines.filter(l=>l.debit>0).map(l=>l.account_name).join(', ')"></td>
                     <td style="font-size:13px" x-text="e.lines.filter(l=>l.credit>0).map(l=>l.account_name).join(', ')"></td>
-                    <td><button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button></td>
+                    <td style="white-space:nowrap">
+                      <button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button>
+                      <button class="btn btn-sm btn-danger" @click="deleteEntry(e.id)">삭제</button>
+                    </td>
                   </tr>
                 </template>
               </tbody>

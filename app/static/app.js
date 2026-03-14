@@ -204,6 +204,13 @@ function app() {
       this.loadDashboard();
     },
 
+    async deleteEntry(id) {
+      if (!confirm('이 거래를 삭제하시겠습니까?')) return;
+      await this.del(`/entries/${id}`);
+      this.loadEntries(null);
+      this.loadDashboard();
+    },
+
     editExistingEntry(e) {
       this.editingEntry = { ...e };
       this.editAmount = e.lines.reduce((s, l) => s + l.debit, 0);
