@@ -145,10 +145,10 @@ async def login(body: PinRequest, request: Request, response: Response):
     if not pin_map:
         return {"success": True, "user": ""}
 
-    # Check against all registered PINs (constant-time per check)
+    # Check against all registered PINs (constant-time per check, use bytes for unicode safety)
     matched_user = None
     for registered_pin, username in pin_map.items():
-        if hmac.compare_digest(body.pin, registered_pin):
+        if hmac.compare_digest(body.pin.encode(), registered_pin.encode()):
             matched_user = username
             break
 

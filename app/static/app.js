@@ -93,25 +93,35 @@ function app() {
     },
 
     async submitPin() {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: this.pinInput }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        this.pinAuthenticated = true;
-        this.currentUser = data.user || '';
-        this.pinError = '';
-        this.pinInput = '';
-        this.applyPeriod();
-        await this.loadDashboard();
-      } else {
-        this.pinError = data.error;
-        this.pinInput = '';
-        if (data.locked) {
-          this.pinLocked = true;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: this.pinInput }),
+        });
+        if (!res.ok && res.status >= 500) {
+          this.pinError = '서버 오류가 발생했습니다.';
+          this.pinInput = '';
+          return;
         }
+        const data = await res.json();
+        if (data.success) {
+          this.pinAuthenticated = true;
+          this.currentUser = data.user || '';
+          this.pinError = '';
+          this.pinInput = '';
+          this.applyPeriod();
+          await this.loadDashboard();
+        } else {
+          this.pinError = data.error;
+          this.pinInput = '';
+          if (data.locked) {
+            this.pinLocked = true;
+          }
+        }
+      } catch (e) {
+        this.pinError = '서버에 연결할 수 없습니다.';
+        this.pinInput = '';
       }
     },
 
