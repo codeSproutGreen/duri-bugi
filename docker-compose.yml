@@ -1,0 +1,14 @@
+services:
+  noti-ledger:
+    build: .
+    container_name: noti-ledger
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - noti-data:/data
+    env_file:
+      - .env
+
+volumes:
+  noti-data:
