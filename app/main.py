@@ -2,13 +2,17 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.config import settings
 from app.database import engine, SessionLocal, Base
 from app.models import Account
-from app.routers import webhook, messages, transactions, accounts, dashboard, rules
+from app.routers import webhook, messages, transactions, accounts, dashboard, rules, auth
+from app.routers.auth import verify_token
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -67,6 +71,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# PIN auth middleware
+class PinAuthMiddleware(BaseHTTPMiddleware):
+    OPEN_PATHS = {"/api/auth/check", "/api/auth/login", "/api/auth/logout"}
+
+    async def dispatch(self, request: Request, call_next):
+        # Skip if PIN not configured
+        if not settings.app_pin:
+            return await call_next(request)
+        # Allow auth endpoints, static files, and webhook (from Android app)
+        path = request.url.path
+        if (
+            path in self.OPEN_PATHS
+            or not path.startswith("/api")
+            or path == "/api/webhook"
+        ):
+            return await call_next(request)
+        # Check session cookie
+        token = request.cookies.get("noti_session")
+        if not verify_token(token):
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        return await call_next(request)
+
+
+app.add_middleware(PinAuthMiddleware)
+
+app.include_router(auth.router)
 app.include_router(webhook.router)
 app.include_router(messages.router)
 app.include_router(transactions.router)

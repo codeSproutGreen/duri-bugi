@@ -6,6 +6,13 @@ function app() {
     theme: localStorage.getItem('theme') || 'dark',
     sidebarOpen: localStorage.getItem('sidebar') !== 'collapsed',
 
+    // PIN auth
+    pinRequired: false,
+    pinAuthenticated: false,
+    pinInput: '',
+    pinError: '',
+    pinLocked: false,
+
     // Dashboard
     dash: { total_asset: 0, total_liability: 0, total_income: 0, total_expense: 0, net_worth: 0, accounts: [], pending_count: 0 },
     monthly: [],
@@ -55,8 +62,51 @@ function app() {
     editingRule: {},
 
     async init() {
-      this.applyPeriod();
-      await this.loadDashboard();
+      // Check PIN auth first
+      const authRes = await fetch('/api/auth/check');
+      const auth = await authRes.json();
+      this.pinRequired = auth.pin_required;
+      this.pinAuthenticated = auth.authenticated;
+      if (!this.pinRequired || this.pinAuthenticated) {
+        this.applyPeriod();
+        await this.loadDashboard();
+      }
+    },
+
+    pinKeyPress(key) {
+      if (this.pinLocked) return;
+      if (key === 'del') {
+        this.pinInput = this.pinInput.slice(0, -1);
+        this.pinError = '';
+        return;
+      }
+      if (key === null) return;
+      this.pinInput += String(key);
+      if (this.pinInput.length >= 4) {
+        this.submitPin();
+      }
+    },
+
+    async submitPin() {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin: this.pinInput }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.pinAuthenticated = true;
+        this.pinError = '';
+        this.pinInput = '';
+        this.applyPeriod();
+        await this.loadDashboard();
+      } else {
+        this.pinError = data.error;
+        this.pinInput = '';
+        if (data.locked) {
+          this.pinLocked = true;
+        }
+      }
     },
 
     toggleTheme() {
