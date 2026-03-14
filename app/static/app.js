@@ -80,10 +80,13 @@ function app() {
         this.pinError = '';
         return;
       }
-      if (key === null) return;
-      this.pinInput += String(key);
-      if (this.pinInput.length >= 4) {
-        this.submitPin();
+      if (key === 'submit') {
+        if (this.pinInput.length > 0) this.submitPin();
+        return;
+      }
+      if (typeof key === 'number') {
+        this.pinInput += String(key);
+        this.pinError = '';
       }
     },
 

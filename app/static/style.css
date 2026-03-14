@@ -395,17 +395,19 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
 .pin-desc {
   font-size: 14px; color: var(--text-muted); margin-bottom: 24px;
 }
-.pin-dots {
-  display: flex; gap: 12px; justify-content: center; margin-bottom: 16px;
+.pin-display {
+  display: flex; gap: 10px; justify-content: center; align-items: center;
+  margin-bottom: 16px; min-height: 30px;
 }
 .pin-dot {
-  width: 14px; height: 14px; border-radius: 50%;
-  border: 2px solid var(--border); background: transparent;
-  transition: background 0.15s;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--primary); transition: all 0.15s;
 }
-.pin-dot.filled {
-  background: var(--primary); border-color: var(--primary);
+.pin-cursor {
+  width: 2px; height: 20px; background: var(--text-muted);
+  animation: blink 1s step-end infinite;
 }
+@keyframes blink { 50% { opacity: 0; } }
 .pin-error {
   color: #ef4444; font-size: 13px; margin-bottom: 12px; min-height: 20px;
 }
@@ -424,6 +426,7 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
 .pin-key:hover:not(:disabled) { background: var(--border); }
 .pin-key:active:not(:disabled) { transform: scale(0.95); }
 .pin-key:disabled { opacity: 0.4; cursor: not-allowed; }
-.pin-key-empty { visibility: hidden; }
+.pin-key-submit { background: var(--primary); color: #fff; border-color: var(--primary); }
+.pin-key-submit:hover:not(:disabled) { opacity: 0.85; background: var(--primary); }
 
 [x-cloak] { display: none !important; }
