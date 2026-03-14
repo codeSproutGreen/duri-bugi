@@ -42,7 +42,7 @@
         <span class="nav-label">검토 대기</span>
         <span class="badge" x-show="pendingCount > 0 && sidebarOpen" x-text="pendingCount"></span>
       </a>
-      <a href="#" :class="{ active: page==='transactions' }" @click.prevent="page='transactions'; loadEntries(null)"
+      <a href="#" :class="{ active: page==='transactions' }" @click.prevent="page='transactions'; newEntry(); loadEntries(null)"
          :title="sidebarOpen ? '' : '거래 내역'">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
         <span class="nav-label">거래 내역</span>
@@ -174,31 +174,96 @@
   <!-- Transactions -->
   <template x-if="page==='transactions'">
     <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h1 style="margin:0">거래 내역</h1>
-        <button class="btn btn-primary" @click="newEntry(); showEditModal=true">+ 수동 입력</button>
-      </div>
-      <div style="margin-bottom:12px">
-        <input type="text" placeholder="검색..." x-model="searchQuery"
-               @input.debounce.300ms="loadEntries(null)">
-      </div>
-      <div class="card" style="padding:0;overflow-x:auto">
-        <table>
-          <thead><tr><th>날짜</th><th>설명</th><th>금액</th><th>차변</th><th>대변</th><th>상태</th></tr></thead>
-          <tbody>
-            <template x-for="e in entries" :key="e.id">
-              <tr style="cursor:pointer" @click="editingEntry=e; showEditModal=true">
-                <td x-text="e.entry_date"></td>
-                <td x-text="e.description"></td>
-                <td class="amount" x-text="fmt(e.lines.reduce((s,l)=>s+l.debit,0))"></td>
-                <td style="font-size:13px" x-text="e.lines.filter(l=>l.debit>0).map(l=>l.account_name).join(', ')"></td>
-                <td style="font-size:13px" x-text="e.lines.filter(l=>l.credit>0).map(l=>l.account_name).join(', ')"></td>
-                <td><span class="tag" :class="e.is_confirmed?'tag-approved':'tag-pending'"
-                      x-text="e.is_confirmed?'확정':'대기'"></span></td>
-              </tr>
+      <h1>거래 내역</h1>
+      <div class="txn-split">
+        <!-- Left: Quick input -->
+        <div class="txn-input">
+          <div class="card">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:14px">빠른 입력</h3>
+            <div class="form-row">
+              <div class="form-group">
+                <label>날짜</label>
+                <input type="date" x-model="editingEntry.entry_date">
+              </div>
+              <div class="form-group">
+                <label>금액</label>
+                <input type="number" x-model.number="editAmount" placeholder="15,000" @keydown.enter="quickSaveEntry()">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>설명</label>
+              <input type="text" x-model="editingEntry.description" placeholder="스타벅스 아메리카노" @keydown.enter="quickSaveEntry()">
+            </div>
+            <div class="form-group">
+              <label>메모</label>
+              <input type="text" x-model="editingEntry.memo" placeholder="선택사항" @keydown.enter="quickSaveEntry()">
+            </div>
+
+            <label style="margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text)">차변 (지출 항목)</label>
+            <div class="acct-pick-grid">
+              <template x-for="a in quickAccounts('expense')" :key="a.id">
+                <button class="acct-pick" :class="editDebitAcct===a.id && 'acct-pick-active'"
+                        @click="editDebitAcct=a.id" x-text="a.name"></button>
+              </template>
+              <button class="acct-pick acct-pick-more" @click="showAcctPicker='debit'">더보기</button>
+            </div>
+            <template x-if="showAcctPicker==='debit'">
+              <div style="margin-top:4px">
+                <select x-model.number="editDebitAcct" @change="showAcctPicker=null" style="font-size:13px">
+                  <template x-for="a in allAccounts" :key="a.id">
+                    <option :value="a.id" x-text="a.code+' '+a.name"></option>
+                  </template>
+                </select>
+              </div>
             </template>
-          </tbody>
-        </table>
+
+            <label style="margin-top:14px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text)">대변 (결제 수단)</label>
+            <div class="acct-pick-grid">
+              <template x-for="a in quickAccounts('payment')" :key="a.id">
+                <button class="acct-pick" :class="editCreditAcct===a.id && 'acct-pick-active'"
+                        @click="editCreditAcct=a.id" x-text="a.name"></button>
+              </template>
+              <button class="acct-pick acct-pick-more" @click="showAcctPicker='credit'">더보기</button>
+            </div>
+            <template x-if="showAcctPicker==='credit'">
+              <div style="margin-top:4px">
+                <select x-model.number="editCreditAcct" @change="showAcctPicker=null" style="font-size:13px">
+                  <template x-for="a in allAccounts" :key="a.id">
+                    <option :value="a.id" x-text="a.code+' '+a.name"></option>
+                  </template>
+                </select>
+              </div>
+            </template>
+
+            <button class="btn btn-primary" style="width:100%;margin-top:16px;justify-content:center"
+                    @click="quickSaveEntry()">저장</button>
+          </div>
+        </div>
+
+        <!-- Right: Transaction list -->
+        <div class="txn-list">
+          <div style="margin-bottom:12px">
+            <input type="text" placeholder="검색..." x-model="searchQuery"
+                   @input.debounce.300ms="loadEntries(null)">
+          </div>
+          <div class="card" style="padding:0;overflow-x:auto">
+            <table>
+              <thead><tr><th>날짜</th><th>설명</th><th>금액</th><th>차변</th><th>대변</th><th></th></tr></thead>
+              <tbody>
+                <template x-for="e in entries" :key="e.id">
+                  <tr>
+                    <td x-text="e.entry_date"></td>
+                    <td x-text="e.description"></td>
+                    <td class="amount" x-text="fmt(e.lines.reduce((s,l)=>s+l.debit,0))"></td>
+                    <td style="font-size:13px" x-text="e.lines.filter(l=>l.debit>0).map(l=>l.account_name).join(', ')"></td>
+                    <td style="font-size:13px" x-text="e.lines.filter(l=>l.credit>0).map(l=>l.account_name).join(', ')"></td>
+                    <td><button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </template>

@@ -339,6 +339,34 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
 }
 .toggle.on::after { transform: translateX(20px); }
 
+/* ── Transaction split layout ── */
+.txn-split {
+  display: grid; grid-template-columns: 340px 1fr;
+  gap: 20px; align-items: start;
+}
+.txn-input { position: sticky; top: 20px; }
+@media (max-width: 900px) {
+  .txn-split { grid-template-columns: 1fr; }
+  .txn-input { position: static; }
+}
+
+/* Account picker buttons */
+.acct-pick-grid {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 4px;
+}
+.acct-pick {
+  padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text-muted);
+  cursor: pointer; transition: all .15s; font-family: inherit;
+}
+.acct-pick:hover { border-color: var(--primary); color: var(--text); }
+.acct-pick-active {
+  background: var(--primary-bg); border-color: var(--primary); color: var(--primary); font-weight: 600;
+}
+.acct-pick-more {
+  border-style: dashed; color: var(--text-muted); font-size: 11px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .sidebar { position: fixed; left: 0; top: 0; z-index: 200; }

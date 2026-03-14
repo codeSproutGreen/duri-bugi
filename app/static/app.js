@@ -41,8 +41,9 @@ function app() {
     messages: [],
     msgFilter: null,
 
-    // Modals
+    // Modals & input
     showEditModal: false,
+    showAcctPicker: null,
     editingEntry: {},
     editAmount: 0,
     editDebitAcct: 0,
@@ -164,6 +165,51 @@ function app() {
       if (this.page === 'review') this.loadEntries(0);
       else if (this.page === 'transactions') this.loadEntries(null);
       this.loadDashboard();
+    },
+
+    quickAccounts(type) {
+      if (type === 'expense') {
+        return this.allAccounts.filter(a => a.type === 'expense' && !a.parent_id).slice(0, 8);
+      }
+      // payment: asset + liability (banks, cards, cash)
+      return this.allAccounts.filter(a => a.type === 'asset' || a.type === 'liability').filter(a => !a.parent_id).slice(0, 8);
+    },
+
+    async quickSaveEntry() {
+      if (!this.editAmount || this.editAmount <= 0) return alert('금액을 입력하세요');
+      if (!this.editDebitAcct || !this.editCreditAcct) return alert('계정을 선택하세요');
+      if (!this.editingEntry.description) return alert('설명을 입력하세요');
+
+      await this.post('/entries', {
+        entry_date: this.editingEntry.entry_date,
+        description: this.editingEntry.description,
+        memo: this.editingEntry.memo || '',
+        lines: [
+          { account_id: this.editDebitAcct, debit: this.editAmount, credit: 0 },
+          { account_id: this.editCreditAcct, debit: 0, credit: this.editAmount },
+        ],
+      });
+
+      // Reset form but keep date and accounts
+      const keepDate = this.editingEntry.entry_date;
+      const keepDebit = this.editDebitAcct;
+      const keepCredit = this.editCreditAcct;
+      this.editingEntry = { id: 0, entry_date: keepDate, description: '', memo: '', lines: [], is_confirmed: 0 };
+      this.editAmount = 0;
+      this.editDebitAcct = keepDebit;
+      this.editCreditAcct = keepCredit;
+      this.showAcctPicker = null;
+
+      this.loadEntries(null);
+      this.loadDashboard();
+    },
+
+    editExistingEntry(e) {
+      this.editingEntry = { ...e };
+      this.editAmount = e.lines.reduce((s, l) => s + l.debit, 0);
+      this.editDebitAcct = e.lines.find(l => l.debit > 0)?.account_id || 0;
+      this.editCreditAcct = e.lines.find(l => l.credit > 0)?.account_id || 0;
+      this.showEditModal = true;
     },
 
     // ── Accounts ──
