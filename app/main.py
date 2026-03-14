@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import engine, SessionLocal, Base
 from app.models import Account
-from app.routers import webhook, messages, transactions, accounts, dashboard
+from app.routers import webhook, messages, transactions, accounts, dashboard, rules
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -72,6 +72,7 @@ app.include_router(messages.router)
 app.include_router(transactions.router)
 app.include_router(accounts.router)
 app.include_router(dashboard.router)
+app.include_router(rules.router)
 
 # Serve frontend
 static_dir = Path(__file__).parent / "static"

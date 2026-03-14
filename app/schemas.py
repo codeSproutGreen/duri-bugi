@@ -36,6 +36,8 @@ class AccountOut(BaseModel):
     parent_id: int | None
     is_active: int
     balance: int = 0
+    depth: int = 0
+    children_count: int = 0
 
     model_config = {"from_attributes": True}
 

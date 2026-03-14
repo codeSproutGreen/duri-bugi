@@ -1,33 +1,79 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NotiLedger</title>
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+  <script>
+    // Apply saved theme before render to prevent flash
+    (function() {
+      var t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body x-data="app()" x-init="init()">
 
-<nav>
-  <a href="#" :class="{ active: page==='dashboard' }" @click.prevent="page='dashboard'">
-    대시보드
-  </a>
-  <a href="#" :class="{ active: page==='review' }" @click.prevent="page='review'; loadEntries(0)">
-    검토 대기 <span class="badge" x-show="pendingCount > 0" x-text="pendingCount"></span>
-  </a>
-  <a href="#" :class="{ active: page==='transactions' }" @click.prevent="page='transactions'; loadEntries(null)">
-    거래 내역
-  </a>
-  <a href="#" :class="{ active: page==='accounts' }" @click.prevent="page='accounts'; loadAccounts()">
-    계정과목
-  </a>
-  <a href="#" :class="{ active: page==='messages' }" @click.prevent="page='messages'; loadMessages()">
-    메시지
-  </a>
-</nav>
+<div class="app-layout">
+  <aside class="sidebar" :class="sidebarOpen ? 'open' : 'collapsed'">
+    <div class="sidebar-header">
+      <div class="sidebar-logo" x-show="sidebarOpen">
+        <span class="logo-icon">💰</span>
+        <span class="logo-text">NotiLedger</span>
+      </div>
+      <button class="sidebar-toggle" @click="toggleSidebar()" :title="sidebarOpen ? '메뉴 접기' : '메뉴 펼치기'">
+        <svg x-show="sidebarOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <svg x-show="!sidebarOpen" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="#" :class="{ active: page==='dashboard' }" @click.prevent="page='dashboard'"
+         :title="sidebarOpen ? '' : '대시보드'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <span class="nav-label">대시보드</span>
+      </a>
+      <a href="#" :class="{ active: page==='review' }" @click.prevent="page='review'; loadEntries(0)"
+         :title="sidebarOpen ? '' : '검토 대기'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <span class="nav-label">검토 대기</span>
+        <span class="badge" x-show="pendingCount > 0 && sidebarOpen" x-text="pendingCount"></span>
+      </a>
+      <a href="#" :class="{ active: page==='transactions' }" @click.prevent="page='transactions'; loadEntries(null)"
+         :title="sidebarOpen ? '' : '거래 내역'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        <span class="nav-label">거래 내역</span>
+      </a>
+      <a href="#" :class="{ active: page==='accounts' }" @click.prevent="page='accounts'; loadAccounts()"
+         :title="sidebarOpen ? '' : '계정'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+        <span class="nav-label">계정</span>
+      </a>
+      <a href="#" :class="{ active: page==='report' }" @click.prevent="page='report'; loadReport()"
+         :title="sidebarOpen ? '' : '리포트'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span class="nav-label">리포트</span>
+      </a>
+    </nav>
+    <div class="sidebar-bottom">
+      <a href="#" :class="{ active: page==='messages' }" @click.prevent="page='messages'; loadMessages()"
+         :title="sidebarOpen ? '' : '메시지'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        <span class="nav-label">메시지</span>
+      </a>
+      <a href="#" :class="{ active: page==='settings' }" @click.prevent="page='settings'; loadSettings()"
+         :title="sidebarOpen ? '' : '설정'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        <span class="nav-label">설정</span>
+      </a>
+    </div>
+  </aside>
 
-<div class="container">
+  <main class="main-content">
+    <div class="container">
 
   <!-- Dashboard -->
   <template x-if="page==='dashboard'">
@@ -161,31 +207,348 @@
   <template x-if="page==='accounts'">
     <div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h1 style="margin:0">계정과목</h1>
-        <button class="btn btn-primary" @click="editingAcct={code:'',name:'',type:'expense'}; showAcctModal=true">
-          + 계정 추가
-        </button>
+        <h1 style="margin:0">계정</h1>
+        <div style="display:flex;gap:8px">
+          <button class="btn" :class="acctEditMode ? 'btn-success' : 'btn-outline'"
+                  @click="toggleAcctEditMode()">
+            <span x-text="acctEditMode ? '완료' : '편집'"></span>
+          </button>
+          <button class="btn btn-primary" @click="newAcct(); showAcctModal=true">
+            + 계정 추가
+          </button>
+        </div>
       </div>
+
+      <!-- Two-column layout: left=재무상태(자산/부채/자본), right=손익(수입/비용) -->
+      <div class="acct-grid">
+        <div>
+          <template x-for="t in ['asset','liability','equity']" :key="t">
+            <div class="acct-section">
+              <h2 x-text="typeLabel(t)"></h2>
+              <template x-if="!acctEditMode">
+                <div class="card" style="padding:0">
+                  <table class="acct-table">
+                    <thead><tr><th>코드</th><th>이름</th><th></th></tr></thead>
+                    <tbody>
+                      <template x-for="a in acctTree(t)" :key="a.id">
+                        <tr :class="a.children_count > 0 ? 'acct-group' : ''">
+                          <td x-text="a.code"></td>
+                          <td>
+                            <span :style="'padding-left:' + (a.depth * 20) + 'px'" style="display:inline-flex;align-items:center;gap:4px">
+                              <span x-show="a.children_count > 0" style="color:var(--text-muted);font-size:11px">▾</span>
+                              <span x-text="a.name"></span>
+                            </span>
+                          </td>
+                          <td style="text-align:right"><button class="btn btn-sm btn-outline" @click="editingAcct={...a}; showAcctModal=true">수정</button></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+              <template x-if="acctEditMode">
+                <div class="card dnd-card">
+                  <div class="dnd-tree" :id="'dnd-root-'+t" x-init="$nextTick(()=>initSortableType(t))">
+                    <template x-for="a in acctRoots(t)" :key="a.id">
+                      <div class="dnd-item" :data-id="a.id">
+                        <div class="dnd-row">
+                          <span class="dnd-handle" title="드래그">⠿</span>
+                          <span class="dnd-code" x-text="a.code"></span>
+                          <span x-text="a.name"></span>
+                          <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...a}; showAcctModal=true">수정</button>
+                        </div>
+                        <div class="dnd-children" :data-parent-id="a.id">
+                          <template x-for="b in acctChildren(a.id)" :key="b.id">
+                            <div class="dnd-item" :data-id="b.id">
+                              <div class="dnd-row">
+                                <span class="dnd-handle" title="드래그">⠿</span>
+                                <span class="dnd-code" x-text="b.code"></span>
+                                <span x-text="b.name"></span>
+                                <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...b}; showAcctModal=true">수정</button>
+                              </div>
+                              <div class="dnd-children dnd-depth2" :data-parent-id="b.id">
+                                <template x-for="c in acctChildren(b.id)" :key="c.id">
+                                  <div class="dnd-item" :data-id="c.id">
+                                    <div class="dnd-row">
+                                      <span class="dnd-handle" title="드래그">⠿</span>
+                                      <span class="dnd-code" x-text="c.code"></span>
+                                      <span x-text="c.name"></span>
+                                      <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...c}; showAcctModal=true">수정</button>
+                                    </div>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+        <div>
+          <template x-for="t in ['income','expense']" :key="t">
+            <div class="acct-section">
+              <h2 x-text="typeLabel(t)"></h2>
+              <template x-if="!acctEditMode">
+                <div class="card" style="padding:0">
+                  <table class="acct-table">
+                    <thead><tr><th>코드</th><th>이름</th><th></th></tr></thead>
+                    <tbody>
+                      <template x-for="a in acctTree(t)" :key="a.id">
+                        <tr :class="a.children_count > 0 ? 'acct-group' : ''">
+                          <td x-text="a.code"></td>
+                          <td>
+                            <span :style="'padding-left:' + (a.depth * 20) + 'px'" style="display:inline-flex;align-items:center;gap:4px">
+                              <span x-show="a.children_count > 0" style="color:var(--text-muted);font-size:11px">▾</span>
+                              <span x-text="a.name"></span>
+                            </span>
+                          </td>
+                          <td style="text-align:right"><button class="btn btn-sm btn-outline" @click="editingAcct={...a}; showAcctModal=true">수정</button></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+              <template x-if="acctEditMode">
+                <div class="card dnd-card">
+                  <div class="dnd-tree" :id="'dnd-root-'+t" x-init="$nextTick(()=>initSortableType(t))">
+                    <template x-for="a in acctRoots(t)" :key="a.id">
+                      <div class="dnd-item" :data-id="a.id">
+                        <div class="dnd-row">
+                          <span class="dnd-handle" title="드래그">⠿</span>
+                          <span class="dnd-code" x-text="a.code"></span>
+                          <span x-text="a.name"></span>
+                          <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...a}; showAcctModal=true">수정</button>
+                        </div>
+                        <div class="dnd-children" :data-parent-id="a.id">
+                          <template x-for="b in acctChildren(a.id)" :key="b.id">
+                            <div class="dnd-item" :data-id="b.id">
+                              <div class="dnd-row">
+                                <span class="dnd-handle" title="드래그">⠿</span>
+                                <span class="dnd-code" x-text="b.code"></span>
+                                <span x-text="b.name"></span>
+                                <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...b}; showAcctModal=true">수정</button>
+                              </div>
+                              <div class="dnd-children dnd-depth2" :data-parent-id="b.id">
+                                <template x-for="c in acctChildren(b.id)" :key="c.id">
+                                  <div class="dnd-item" :data-id="c.id">
+                                    <div class="dnd-row">
+                                      <span class="dnd-handle" title="드래그">⠿</span>
+                                      <span class="dnd-code" x-text="c.code"></span>
+                                      <span x-text="c.name"></span>
+                                      <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...c}; showAcctModal=true">수정</button>
+                                    </div>
+                                  </div>
+                                </template>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Report -->
+  <template x-if="page==='report'">
+    <div>
+      <h1>리포트</h1>
+
+      <!-- Period selector -->
+      <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-sm" :class="periodMode==='year'?'btn-primary':'btn-outline'" @click="setPeriodMode('year')">연도별</button>
+          <button class="btn btn-sm" :class="periodMode==='quarter'?'btn-primary':'btn-outline'" @click="setPeriodMode('quarter')">분기별</button>
+          <button class="btn btn-sm" :class="periodMode==='month'?'btn-primary':'btn-outline'" @click="setPeriodMode('month')">월별</button>
+          <button class="btn btn-sm" :class="periodMode==='custom'?'btn-primary':'btn-outline'" @click="periodMode='custom'">직접입력</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-left:8px">
+          <button class="btn btn-sm btn-outline" @click="shiftPeriod(-1)">&lsaquo;</button>
+          <template x-if="periodMode==='year'">
+            <select style="width:100px" x-model="periodYear" @change="applyPeriod()">
+              <template x-for="y in periodYears()" :key="y"><option :value="y" x-text="y+'년'"></option></template>
+            </select>
+          </template>
+          <template x-if="periodMode==='quarter'">
+            <div style="display:flex;gap:6px">
+              <select style="width:90px" x-model="periodYear" @change="applyPeriod()">
+                <template x-for="y in periodYears()" :key="y"><option :value="y" x-text="y+'년'"></option></template>
+              </select>
+              <select style="width:80px" x-model.number="periodQuarter" @change="applyPeriod()">
+                <option value="1">1분기</option><option value="2">2분기</option>
+                <option value="3">3분기</option><option value="4">4분기</option>
+              </select>
+            </div>
+          </template>
+          <template x-if="periodMode==='month'">
+            <div style="display:flex;gap:6px">
+              <select style="width:90px" x-model="periodYear" @change="applyPeriod()">
+                <template x-for="y in periodYears()" :key="y"><option :value="y" x-text="y+'년'"></option></template>
+              </select>
+              <select style="width:75px" x-model.number="periodMonth" @change="applyPeriod()">
+                <template x-for="m in 12" :key="m"><option :value="m" x-text="m+'월'"></option></template>
+              </select>
+            </div>
+          </template>
+          <template x-if="periodMode==='custom'">
+            <div style="display:flex;gap:6px;align-items:center">
+              <input type="date" x-model="reportStart" style="width:140px" @change="loadReport()">
+              <span style="color:var(--text-muted)">~</span>
+              <input type="date" x-model="reportEnd" style="width:140px" @change="loadReport()">
+            </div>
+          </template>
+          <button class="btn btn-sm btn-outline" @click="shiftPeriod(1)">&rsaquo;</button>
+        </div>
+        <span style="color:var(--text-muted);font-size:13px;margin-left:4px" x-text="reportStart + ' ~ ' + reportEnd"></span>
+      </div>
+
+      <!-- Tabs -->
       <div class="tabs">
-        <template x-for="t in ['asset','liability','equity','income','expense']" :key="t">
-          <div class="tab" :class="acctTab===t?'active':''" @click="acctTab=t" x-text="typeLabel(t)"></div>
-        </template>
+        <div class="tab" :class="reportTab==='trend' && 'active'" @click="reportTab='trend'; $nextTick(()=>drawChart())">자산추이</div>
+        <div class="tab" :class="reportTab==='ie' && 'active'" @click="reportTab='ie'">비용수익</div>
+        <div class="tab" :class="reportTab==='monthly' && 'active'" @click="reportTab='monthly'">월별</div>
       </div>
-      <div class="card" style="padding:0">
-        <table>
-          <thead><tr><th>코드</th><th>이름</th><th>잔액</th><th></th></tr></thead>
-          <tbody>
-            <template x-for="a in (acctList[acctTab]||[])" :key="a.id">
-              <tr>
-                <td x-text="a.code"></td>
-                <td x-text="a.name"></td>
-                <td class="amount" x-text="fmt(a.balance||0)"></td>
-                <td><button class="btn btn-sm btn-outline" @click="editingAcct=a; showAcctModal=true">수정</button></td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
+
+      <!-- Tab: 자산추이 -->
+      <template x-if="reportTab==='trend'">
+        <div x-effect="reportShowAsset; reportShowLiability; reportShowNetWorth; $nextTick(()=>drawChart())">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin:0">
+              <input type="checkbox" x-model="reportShowAsset"> <span class="report-legend asset-dot"></span> 자산
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin:0">
+              <input type="checkbox" x-model="reportShowLiability"> <span class="report-legend liability-dot"></span> 부채
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin:0">
+              <input type="checkbox" x-model="reportShowNetWorth"> <span class="report-legend networth-dot"></span> 순자산
+            </label>
+          </div>
+          <div class="card">
+            <canvas id="report-chart" style="width:100%;height:300px"></canvas>
+          </div>
+          <div class="card" style="padding:0">
+            <table>
+              <thead>
+                <tr>
+                  <th>날짜</th>
+                  <th x-show="reportShowAsset" class="amount">자산</th>
+                  <th x-show="reportShowLiability" class="amount">부채</th>
+                  <th x-show="reportShowNetWorth" class="amount">순자산</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="r in reportDataSampled()" :key="r.date">
+                  <tr>
+                    <td x-text="r.date"></td>
+                    <td x-show="reportShowAsset" class="amount amount-income" x-text="fmt(r.asset)"></td>
+                    <td x-show="reportShowLiability" class="amount amount-expense" x-text="fmt(r.liability)"></td>
+                    <td x-show="reportShowNetWorth" class="amount" x-text="fmt(r.net_worth)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
+
+      <!-- Tab: 비용수익 -->
+      <template x-if="reportTab==='ie'">
+        <div>
+          <div class="acct-grid">
+            <!-- 비용 -->
+            <div>
+              <div class="card ie-card">
+                <h3 class="ie-section-title">비용</h3>
+                <div class="ie-row ie-row-total">
+                  <span class="ie-name">총 비용</span>
+                  <div class="ie-bar-wrap"><div class="ie-bar ie-bar-expense" style="width:100%"></div></div>
+                  <span class="ie-val amount-expense" x-text="fmt(incExp.total_expense)"></span>
+                </div>
+                <template x-for="a in ieTree('expense')" :key="a.id">
+                  <div class="ie-row" :class="a._isGroup ? 'ie-row-group' : 'ie-row-leaf'"
+                       :style="'padding-left:' + (a._depth * 20) + 'px'">
+                    <span class="ie-name" x-text="a.name"></span>
+                    <div class="ie-bar-wrap"><div class="ie-bar ie-bar-expense"
+                         :style="'width:' + iePercent(a._total, incExp.total_expense) + '%'"></div></div>
+                    <span class="ie-val" x-text="fmt(a._total)"></span>
+                    <span class="ie-pct" x-text="iePercent(a._total, incExp.total_expense) + '%'"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- 수익 + 당기순손익 -->
+            <div>
+              <div class="card ie-card">
+                <h3 class="ie-section-title">수익</h3>
+                <div class="ie-row ie-row-total">
+                  <span class="ie-name">총 수익</span>
+                  <div class="ie-bar-wrap"><div class="ie-bar ie-bar-income" style="width:100%"></div></div>
+                  <span class="ie-val amount-income" x-text="fmt(incExp.total_income)"></span>
+                </div>
+                <template x-for="a in ieTree('income')" :key="a.id">
+                  <div class="ie-row" :class="a._isGroup ? 'ie-row-group' : 'ie-row-leaf'"
+                       :style="'padding-left:' + (a._depth * 20) + 'px'">
+                    <span class="ie-name" x-text="a.name"></span>
+                    <div class="ie-bar-wrap"><div class="ie-bar ie-bar-income"
+                         :style="'width:' + iePercent(a._total, incExp.total_income) + '%'"></div></div>
+                    <span class="ie-val" x-text="fmt(a._total)"></span>
+                    <span class="ie-pct" x-text="iePercent(a._total, incExp.total_income) + '%'"></span>
+                  </div>
+                </template>
+              </div>
+
+              <div class="card ie-card" style="margin-top:12px">
+                <h3 class="ie-section-title">당기순손익</h3>
+                <div class="ie-row ie-row-total">
+                  <span class="ie-name">총 당기순손익</span>
+                  <div class="ie-bar-wrap">
+                    <div class="ie-bar" :class="incExp.net_income >= 0 ? 'ie-bar-income' : 'ie-bar-expense'"
+                         :style="'width:' + Math.min(100, Math.abs(iePercent(incExp.net_income, Math.max(incExp.total_income, incExp.total_expense)))) + '%'"></div>
+                  </div>
+                  <span class="ie-val" :class="incExp.net_income >= 0 ? 'amount-income' : 'amount-expense'"
+                        x-text="fmt(incExp.net_income)"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Tab: 월별 -->
+      <template x-if="reportTab==='monthly'">
+        <div>
+          <div class="card" style="padding:0">
+            <table>
+              <thead><tr><th>월</th><th class="amount">수입</th><th class="amount">비용</th><th class="amount">차이</th></tr></thead>
+              <tbody>
+                <template x-for="m in monthly" :key="m.month">
+                  <tr>
+                    <td x-text="m.month"></td>
+                    <td class="amount amount-income" x-text="fmt(m.income)"></td>
+                    <td class="amount amount-expense" x-text="fmt(m.expense)"></td>
+                    <td class="amount" :class="m.income-m.expense>=0?'amount-income':'amount-expense'"
+                        x-text="fmt(m.income - m.expense)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
+
     </div>
   </template>
 
@@ -220,7 +583,56 @@
     </div>
   </template>
 
-</div>
+  <!-- Settings -->
+  <template x-if="page==='settings'">
+    <div>
+      <h1>설정</h1>
+
+      <h2>테마</h2>
+      <div class="card">
+        <div class="toggle-wrap" style="border-bottom:none">
+          <div>
+            <div class="toggle-label">다크 모드</div>
+            <div class="toggle-desc">어두운 배경 테마로 전환합니다.</div>
+          </div>
+          <button class="toggle" :class="theme==='dark' && 'on'" @click="toggleTheme()"></button>
+        </div>
+      </div>
+
+      <h2>자동 분류 규칙</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+        거래 승인 시 가맹점 패턴이 자동 학습됩니다. 여기서 직접 수정/삭제할 수 있습니다.
+      </p>
+      <div class="card" style="padding:0">
+        <table>
+          <thead><tr><th>가맹점 패턴</th><th>차변</th><th>대변</th><th>적용 횟수</th><th></th></tr></thead>
+          <tbody>
+            <template x-for="r in rules" :key="r.id">
+              <tr>
+                <td x-text="r.merchant_pattern"></td>
+                <td style="font-size:13px" x-text="r.debit_account_name || '-'"></td>
+                <td style="font-size:13px" x-text="r.credit_account_name || '-'"></td>
+                <td style="text-align:center" x-text="r.hit_count"></td>
+                <td>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn btn-sm btn-outline" @click="editRule(r)">수정</button>
+                    <button class="btn btn-sm btn-danger" @click="deleteRule(r.id)">삭제</button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+            <template x-if="rules.length === 0">
+              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px">등록된 규칙 없음</td></tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </template>
+
+    </div><!-- /.container -->
+  </main>
+</div><!-- /.app-layout -->
 
 <!-- Edit Entry Modal -->
 <template x-if="showEditModal">
@@ -280,14 +692,6 @@
     <div class="modal">
       <h2 x-text="editingAcct.id ? '계정 수정' : '계정 추가'"></h2>
       <div class="form-group">
-        <label>코드</label>
-        <input type="text" x-model="editingAcct.code" placeholder="5070">
-      </div>
-      <div class="form-group">
-        <label>이름</label>
-        <input type="text" x-model="editingAcct.name" placeholder="문화생활">
-      </div>
-      <div class="form-group">
         <label>유형</label>
         <select x-model="editingAcct.type">
           <option value="asset">자산</option>
@@ -297,9 +701,62 @@
           <option value="expense">비용</option>
         </select>
       </div>
+      <div class="form-group">
+        <label>상위 계정 (그룹)</label>
+        <select x-model.number="editingAcct.parent_id">
+          <option :value="null">없음 (최상위)</option>
+          <template x-for="p in parentCandidates()" :key="p.id">
+            <option :value="p.id" x-text="'  '.repeat(p.depth) + p.code + ' ' + p.name"
+                    :disabled="p.id === editingAcct.id || p.depth >= 2"></option>
+          </template>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>코드</label>
+        <input type="text" x-model="editingAcct.code" placeholder="5070">
+      </div>
+      <div class="form-group">
+        <label>이름 (이모지 사용 가능)</label>
+        <input type="text" x-model="editingAcct.name" placeholder="🍔 외식">
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-outline" @click="showAcctModal=false">취소</button>
         <button class="btn btn-primary" @click="saveAcct()">저장</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- Rule Modal -->
+<template x-if="showRuleModal">
+  <div class="modal-bg" @click.self="showRuleModal=false">
+    <div class="modal">
+      <h2>규칙 수정</h2>
+      <div class="form-group">
+        <label>가맹점 패턴</label>
+        <input type="text" x-model="editingRule.merchant_pattern" placeholder="스타벅스">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>차변 (지출 항목)</label>
+          <select x-model.number="editingRule.debit_account_id">
+            <template x-for="a in allAccounts" :key="a.id">
+              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            </template>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>대변 (결제 수단)</label>
+          <select x-model.number="editingRule.credit_account_id">
+            <template x-for="a in allAccounts" :key="a.id">
+              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            </template>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" @click="showRuleModal=false">취소</button>
+        <button class="btn btn-primary" @click="saveRule()">저장</button>
       </div>
     </div>
   </div>

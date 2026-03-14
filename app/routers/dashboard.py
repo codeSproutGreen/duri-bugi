@@ -1,5 +1,7 @@
+from datetime import date, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -76,3 +78,144 @@ def get_monthly(
         for m, v in sorted(monthly.items(), reverse=True)
     ]
     return result[:months]
+
+
+@router.get("/dashboard/income-expense")
+def get_income_expense(
+    start: str = Query(..., description="YYYY-MM-DD"),
+    end: str = Query(..., description="YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """Per-account expense and income totals for a date range."""
+    rows = db.query(
+        Account.id,
+        Account.code,
+        Account.name,
+        Account.type,
+        Account.parent_id,
+        func.sum(JournalLine.debit).label("total_debit"),
+        func.sum(JournalLine.credit).label("total_credit"),
+    ).join(JournalLine, JournalLine.account_id == Account.id
+    ).join(JournalEntry, JournalEntry.id == JournalLine.entry_id
+    ).filter(
+        JournalEntry.is_confirmed == 1,
+        JournalEntry.entry_date >= start,
+        JournalEntry.entry_date <= end,
+        Account.type.in_(["income", "expense"]),
+    ).group_by(Account.id).all()
+
+    # Also get accounts with zero balance in range
+    all_accts = db.query(Account).filter(
+        Account.type.in_(["income", "expense"]),
+        Account.is_active == 1,
+    ).all()
+
+    acct_totals = {}
+    for row in rows:
+        if row.type == "expense":
+            amount = (row.total_debit or 0) - (row.total_credit or 0)
+        else:  # income
+            amount = (row.total_credit or 0) - (row.total_debit or 0)
+        acct_totals[row.id] = amount
+
+    result = {"expense": [], "income": []}
+    for acct in all_accts:
+        amount = acct_totals.get(acct.id, 0)
+        result[acct.type].append({
+            "id": acct.id,
+            "code": acct.code,
+            "name": acct.name,
+            "parent_id": acct.parent_id,
+            "amount": amount,
+        })
+
+    # Sort by code
+    for t in result:
+        result[t].sort(key=lambda a: a["code"])
+
+    # Compute totals
+    def sum_roots(items):
+        root_ids = {a["id"] for a in items if not a["parent_id"]}
+        child_ids = {a["id"] for a in items if a["parent_id"]}
+        total = 0
+        for a in items:
+            if a["id"] in root_ids:
+                # root amount already includes own, add children
+                children_sum = sum(c["amount"] for c in items if c["parent_id"] == a["id"])
+                total += a["amount"] + children_sum
+            elif a["parent_id"] and a["parent_id"] not in {x["id"] for x in items}:
+                # orphan (parent in different type)
+                total += a["amount"]
+        return total
+
+    result["total_expense"] = sum_roots(result["expense"])
+    result["total_income"] = sum_roots(result["income"])
+    result["net_income"] = result["total_income"] - result["total_expense"]
+
+    return result
+
+
+@router.get("/dashboard/trend")
+def get_trend(
+    start: str = Query(..., description="YYYY-MM-DD"),
+    end: str = Query(..., description="YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """Daily cumulative asset and liability balances over a date range."""
+    # Get all confirmed entries in range, grouped by date and account type
+    rows = db.query(
+        JournalEntry.entry_date,
+        Account.type,
+        func.sum(JournalLine.debit).label("total_debit"),
+        func.sum(JournalLine.credit).label("total_credit"),
+    ).join(JournalLine, JournalLine.entry_id == JournalEntry.id
+    ).join(Account, Account.id == JournalLine.account_id
+    ).filter(
+        JournalEntry.is_confirmed == 1,
+        JournalEntry.entry_date <= end,
+        Account.type.in_(["asset", "liability"]),
+    ).group_by(JournalEntry.entry_date, Account.type
+    ).order_by(JournalEntry.entry_date).all()
+
+    # Build cumulative daily balances
+    daily = {}  # date -> {asset, liability}
+    for row in rows:
+        d = row.entry_date
+        if d not in daily:
+            daily[d] = {"asset": 0, "liability": 0}
+        if row.type == "asset":
+            daily[d]["asset"] += (row.total_debit or 0) - (row.total_credit or 0)
+        elif row.type == "liability":
+            daily[d]["liability"] += (row.total_credit or 0) - (row.total_debit or 0)
+
+    # Fill in cumulative values day by day
+    all_dates = sorted(daily.keys())
+    if not all_dates:
+        return []
+
+    result = []
+    cum_asset = 0
+    cum_liability = 0
+    d = date.fromisoformat(max(start, all_dates[0]))
+    end_date = date.fromisoformat(min(end, all_dates[-1]))
+
+    # Pre-accumulate everything before start
+    for dd in all_dates:
+        if dd < start:
+            cum_asset += daily[dd]["asset"]
+            cum_liability += daily[dd]["liability"]
+
+    while d <= end_date:
+        ds = d.isoformat()
+        if ds in daily:
+            cum_asset += daily[ds]["asset"]
+            cum_liability += daily[ds]["liability"]
+        result.append({
+            "date": ds,
+            "asset": cum_asset,
+            "liability": cum_liability,
+            "net_worth": cum_asset - cum_liability,
+        })
+        d += timedelta(days=1)
+
+    return result
