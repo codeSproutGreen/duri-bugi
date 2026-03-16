@@ -472,8 +472,8 @@ function app() {
     async saveAcct() {
       if (!this.editingAcct.name) return alert('이름을 입력하세요');
       // Check duplicate name
-      const allAccts = Object.values(this.acctList).flat();
-      const dup = allAccts.find(a => a.name === this.editingAcct.name && a.id !== this.editingAcct.id);
+      const sameTypeAccts = this.acctList[this.editingAcct.type] || [];
+      const dup = sameTypeAccts.find(a => a.name === this.editingAcct.name && a.id !== this.editingAcct.id);
       if (dup) return alert(`"${this.editingAcct.name}" 이름의 계정이 이미 존재합니다.`);
       const data = { ...this.editingAcct };
       if (data.parent_id === '' || data.parent_id === 'null') data.parent_id = null;
