@@ -201,7 +201,7 @@
           <div class="card-header">
             <div>
               <strong x-text="e.description"></strong>
-              <span style="color:var(--text-muted);margin-left:8px" x-text="e.entry_date"></span>
+              <span style="color:var(--text-muted);margin-left:8px" x-text="fmtDate(e.entry_date)"></span>
             </div>
             <div style="display:flex;gap:6px">
               <button class="btn btn-sm btn-success" @click="confirmEntry(e.id)">승인</button>
@@ -347,18 +347,29 @@
           </div>
           <div class="card" style="padding:0;overflow-x:auto">
             <table>
-              <thead><tr><th>날짜</th><th>설명</th><th>금액</th><th>차변</th><th>대변</th><th></th></tr></thead>
+              <thead><tr><th>날짜</th><th>설명</th><th>금액</th><th>차변</th><th>대변</th><th class="mobile-hide"></th></tr></thead>
               <tbody>
                 <template x-for="e in entries" :key="e.id">
-                  <tr>
-                    <td x-text="e.entry_date"></td>
-                    <td x-text="e.description"></td>
+                  <tr @click="selectedEntryId = selectedEntryId === e.id ? null : e.id"
+                      :class="{'row-selected': selectedEntryId === e.id}" style="cursor:pointer">
+                    <td x-text="fmtDate(e.entry_date)"></td>
+                    <td class="td-desc" x-text="e.description" :title="e.description"></td>
                     <td class="amount" x-text="fmt(Math.max(...e.lines.map(l=>l.debit)))"></td>
-                    <td style="font-size:13px" x-html="acctWithBadge(e.lines,'debit')"></td>
-                    <td style="font-size:13px" x-html="acctWithBadge(e.lines,'credit')"></td>
-                    <td style="white-space:nowrap">
+                    <td class="td-acct" x-html="acctWithBadge(e.lines,'debit')"></td>
+                    <td class="td-acct" x-html="acctWithBadge(e.lines,'credit')"></td>
+                    <td class="mobile-hide" style="white-space:nowrap" @click.stop>
                       <button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button>
                       <button class="btn btn-sm btn-danger" @click="deleteEntry(e.id)">삭제</button>
+                    </td>
+                  </tr>
+                  <!-- Mobile action row -->
+                  <tr class="mobile-only" x-show="selectedEntryId === e.id" x-collapse>
+                    <td colspan="5" style="padding:6px 8px">
+                      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px" x-text="e.description"></div>
+                      <div style="text-align:right">
+                        <button class="btn btn-sm btn-outline" @click.stop="editExistingEntry(e)">수정</button>
+                        <button class="btn btn-sm btn-danger" @click.stop="deleteEntry(e.id)">삭제</button>
+                      </div>
                     </td>
                   </tr>
                 </template>
@@ -1096,6 +1107,29 @@
             </button>
           </template>
         </div>
+      </div>
+
+      <h2>그룹 색상</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+        거래내역에서 계정 이름에 그룹별 배경색을 표시합니다.
+      </p>
+      <div class="card" style="padding:12px">
+        <template x-for="g in uniqueGroups()" :key="g">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <span style="min-width:60px;font-size:14px;font-weight:500" x-text="g"></span>
+            <input type="color" :value="groupColors[g] || '#6366f1'"
+                   @input="saveGroupColor(g, $event.target.value)"
+                   style="width:36px;height:28px;border:none;cursor:pointer;background:none">
+            <span style="padding:2px 8px;border-radius:4px;font-size:12px"
+                  :style="groupColors[g] ? `background:${groupColors[g]}30;border-left:3px solid ${groupColors[g]}` : ''"
+                  x-text="'예시 계정'"></span>
+            <button class="btn btn-sm btn-outline" @click="removeGroupColor(g)"
+                    x-show="groupColors[g]" style="font-size:11px">초기화</button>
+          </div>
+        </template>
+        <template x-if="uniqueGroups().length === 0">
+          <p style="color:var(--text-muted);font-size:13px">그룹 계정이 없습니다.</p>
+        </template>
       </div>
 
       <h2>자동 분류 규칙</h2>

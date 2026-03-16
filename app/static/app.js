@@ -17,6 +17,7 @@ function app() {
       { id: 'midnight', name: 'Midnight', icon: '🌑', dark: true },
     ],
     sidebarOpen: localStorage.getItem('sidebar') !== 'collapsed',
+    groupColors: JSON.parse(localStorage.getItem('groupColors') || '{}'),
 
     // PIN auth
     pinRequired: false,
@@ -81,6 +82,7 @@ function app() {
 
     // Modals & input
     showEditModal: false,
+    selectedEntryId: null,
     showAcctPicker: null,
     showDebitTip: false,
     showCreditTip: false,
@@ -344,8 +346,27 @@ function app() {
       return lines.filter(l => side === 'debit' ? l.debit > 0 : l.credit > 0)
         .map(l => {
           const grp = this.acctGroupLabel(l.account_id);
-          return grp ? `${l.account_name} <span style="font-size:10px;padding:1px 4px;border-radius:3px;background:var(--border);color:var(--text-muted)">${grp}</span>` : l.account_name;
+          const color = grp ? this.groupColors[grp] : null;
+          if (color) {
+            return `<span style="padding:1px 6px;border-radius:4px;background:${color}30;border-left:3px solid ${color}">${l.account_name}</span>`;
+          }
+          return l.account_name;
         }).join(', ');
+    },
+    saveGroupColor(groupName, color) {
+      this.groupColors[groupName] = color;
+      localStorage.setItem('groupColors', JSON.stringify(this.groupColors));
+    },
+    removeGroupColor(groupName) {
+      delete this.groupColors[groupName];
+      localStorage.setItem('groupColors', JSON.stringify(this.groupColors));
+    },
+    uniqueGroups() {
+      const names = new Set();
+      for (const a of this.allAccounts) {
+        if (a.is_group && !a.parent_id) names.add(a.name);
+      }
+      return [...names];
     },
     accountTypeLabel(type) {
       return { asset: '자산', liability: '부채', equity: '자본', income: '수익', expense: '비용' }[type] || type;
@@ -1064,6 +1085,12 @@ function app() {
       roots.sort((a, b) => a.code.localeCompare(b.code));
       for (const r of roots) addNode(r, 0);
       return result;
+    },
+    fmtDate(d) {
+      // "2026-03-16" → mobile: "03/16", desktop: "2026-03-16"
+      if (!d) return '';
+      if (window.innerWidth <= 768) return d.slice(5).replace('-', '/');
+      return d;
     },
     typeLabel(t) {
       return { asset: '자산', liability: '부채', equity: '자본', income: '수입', expense: '비용' }[t] || t;
