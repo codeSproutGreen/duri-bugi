@@ -39,16 +39,29 @@ def _find_account_by_code(db: Session, code: str | None) -> Account | None:
 
 
 def _build_accounts_context(db: Session) -> str:
-    """Build a text list of available accounts for AI context."""
+    """Build a text list of available accounts for AI context, including group info."""
     accounts = db.query(Account).filter(
-        Account.is_active == 1, Account.is_group == 0, Account.is_deleted == 0
+        Account.is_active == 1, Account.is_deleted == 0
     ).order_by(Account.type, Account.code).all()
+
+    acct_map = {a.id: a for a in accounts}
+    type_label = {"asset": "자산", "liability": "부채", "equity": "자본",
+                  "income": "수입", "expense": "비용"}
 
     lines = []
     for a in accounts:
-        type_label = {"asset": "자산", "liability": "부채", "equity": "자본",
-                      "income": "수입", "expense": "비용"}.get(a.type, a.type)
-        lines.append(f"{a.code} {a.name} ({type_label})")
+        if a.is_group:
+            continue  # Groups are shown as context for their children
+        label = type_label.get(a.type, a.type)
+        # Include parent group name for disambiguation
+        group_name = ""
+        if a.parent_id and a.parent_id in acct_map:
+            parent = acct_map[a.parent_id]
+            # Walk up to root group
+            while parent.parent_id and parent.parent_id in acct_map:
+                parent = acct_map[parent.parent_id]
+            group_name = f" [그룹:{parent.name}]"
+        lines.append(f"{a.code} {a.name} ({label}){group_name}")
     return "\n".join(lines)
 
 
@@ -97,8 +110,24 @@ def check_category_rules(db: Session, content: str) -> CategoryRule | None:
     return None
 
 
+def _find_account_by_name(db: Session, name: str, parent_id: int | None = None) -> Account | None:
+    """Find an active, non-group account by name, optionally under a specific parent."""
+    q = db.query(Account).filter(
+        Account.name == name, Account.is_active == 1,
+        Account.is_group == 0, Account.is_deleted == 0,
+    )
+    if parent_id is not None:
+        q = q.filter(Account.parent_id == parent_id)
+    return q.first()
+
+
 def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
-    """Handle 온통대전 체크카드 SMS — creates 2 entries (purchase + cashback)."""
+    """Handle 온통대전 체크카드 SMS — creates 2 entries (purchase + cashback).
+
+    Uses AI to determine expense account AND the correct 온통대전(충전액)
+    account (AI picks the right group based on device_name).
+    Then finds sibling 온통대전(캐시백) under the same parent group.
+    """
     m = _ONTONG_RE.search(msg.content)
     if not m:
         return None
@@ -112,42 +141,45 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
     month, day = date_mm_dd.split("/")
     entry_date = f"{year}-{month}-{day}"
 
-    # Find 온통대전 accounts by code
-    ontong_charge = _find_account_by_code(db, "1020")   # 온통대전(충전액)
-    ontong_cb = _find_account_by_code(db, "1021")       # 온통대전(캐시백)
-    cb_income = _find_account_by_code(db, "4004")       # 캐시백수입
+    # Use AI to determine both expense (debit) and 온통대전 충전액 (credit) accounts
+    # AI already handles device_name → group preference
+    accounts_ctx = _build_accounts_context(db)
+    history_ctx = _build_history_context(db)
+    device_name = getattr(msg, "device_name", "") or ""
+    parsed = parse_message(msg.source_name, msg.content,
+                           accounts_context=accounts_ctx,
+                           history_context=history_ctx,
+                           device_name=device_name)
 
-    if not ontong_charge or not ontong_cb or not cb_income:
-        log.warning("온통대전 accounts not found (1020/1021/4004)")
-        return None
-
-    # Determine expense account: check rules → AI → default
     expense_acct = None
-    rule = check_category_rules(db, msg.content)
-    if rule and rule.debit_account_id:
-        expense_acct = db.query(Account).get(rule.debit_account_id)
-        if expense_acct:
-            rule.hit_count += 1
-            rule.updated_at = datetime.now().isoformat()
+    charge_acct = None  # 온통대전(충전액)
 
-    if not expense_acct:
-        # Try AI for expense categorization
-        accounts_ctx = _build_accounts_context(db)
-        history_ctx = _build_history_context(db)
-        device_name = getattr(msg, "device_name", "") or ""
-        parsed = parse_message(msg.source_name, msg.content,
-                               accounts_context=accounts_ctx,
-                               history_context=history_ctx,
-                               device_name=device_name)
-        if parsed:
-            msg.ai_result = json.dumps(parsed, ensure_ascii=False)
-            expense_acct = _find_account_by_code(db, parsed.get("suggested_debit_code"))
+    if parsed:
+        msg.ai_result = json.dumps(parsed, ensure_ascii=False)
+        expense_acct = _find_account_by_code(db, parsed.get("suggested_debit_code"))
+        charge_acct = _find_account_by_code(db, parsed.get("suggested_credit_code"))
 
+    # Fallback: find 온통대전(충전액) by name
+    if not charge_acct:
+        charge_acct = _find_account_by_name(db, "온통대전(충전액)")
     if not expense_acct:
-        expense_acct = find_account_by_type(db, "expense")  # 기타비용 fallback
+        expense_acct = find_account_by_type(db, "expense")
 
-    if not expense_acct:
+    if not expense_acct or not charge_acct:
+        log.warning("온통대전: expense or 충전액 account not found")
         return None
+
+    # Find 캐시백 account under the same parent group as 충전액
+    cashback_acct = None
+    if charge_acct.parent_id:
+        cashback_acct = _find_account_by_name(db, "온통대전(캐시백)", parent_id=charge_acct.parent_id)
+    if not cashback_acct:
+        cashback_acct = _find_account_by_name(db, "온통대전(캐시백)")
+
+    # Find 캐시백수입 income account
+    cb_income = _find_account_by_name(db, "캐시백수입")
+    if not cb_income:
+        cb_income = find_account_by_type(db, "income")
 
     entries = []
 
@@ -160,11 +192,11 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
     db.add(e1)
     db.flush()
     db.add(JournalLine(entry_id=e1.id, account_id=expense_acct.id, debit=amount, credit=0))
-    db.add(JournalLine(entry_id=e1.id, account_id=ontong_charge.id, debit=0, credit=amount))
+    db.add(JournalLine(entry_id=e1.id, account_id=charge_acct.id, debit=0, credit=amount))
     entries.append(e1)
 
     # Entry 2: 차변 온통대전(캐시백) / 대변 캐시백수입
-    if cashback > 0:
+    if cashback > 0 and cashback_acct and cb_income:
         e2 = JournalEntry(
             entry_date=entry_date, description=f"캐시백 - {merchant}",
             memo="온통대전 캐시백적립",
@@ -172,7 +204,7 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
         )
         db.add(e2)
         db.flush()
-        db.add(JournalLine(entry_id=e2.id, account_id=ontong_cb.id, debit=cashback, credit=0))
+        db.add(JournalLine(entry_id=e2.id, account_id=cashback_acct.id, debit=cashback, credit=0))
         db.add(JournalLine(entry_id=e2.id, account_id=cb_income.id, debit=0, credit=cashback))
         entries.append(e2)
 
@@ -180,9 +212,12 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
     msg.ai_result = json.dumps({
         "source": "ontong", "amount": amount, "cashback": cashback,
         "merchant": merchant, "date": entry_date,
+        "charge_account": charge_acct.code,
+        "cashback_account": cashback_acct.code if cashback_acct else None,
     }, ensure_ascii=False)
     db.commit()
-    log.info("온통대전: %s %d원, 캐시백 %d원 → %d entries", merchant, amount, cashback, len(entries))
+    log.info("온통대전: %s %d원, 캐시백 %d원 → %d entries (device=%s)",
+             merchant, amount, cashback, len(entries), device_name)
     return entries
 
 

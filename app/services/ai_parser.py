@@ -31,7 +31,8 @@ CRITICAL RULES for suggested_debit_code and suggested_credit_code:
 - bank_transfer: debit=받는 계정 code, credit=보내는 계정 code
 - Match "신한카드" in message → find account named "신한카드" → use its code
 - Match "KB국민카드" → find "KB국민카드" → use its code
-- IMPORTANT: When device_name is provided, prefer device-prefixed accounts. Example: device_name="꾸폰" + "하나카드" in message → look for "꾸_하나카드" account first, fall back to "하나카드" if not found
+- IMPORTANT: When device_name is provided, prefer accounts under the matching person/group. Each person has their own bank/card accounts under their group (shown as [그룹:name] in the account list). Match device_name to the right person's group.
+- For 온통대전 체크카드 messages: credit account should be the "온통대전(충전액)" account under the matching person's group. The debit should be the appropriate expense account (e.g. 식비 for restaurants).
 - If [Past Transactions] show same merchant mapped to specific accounts, use the same accounts
 - Amount must be integer (Korean Won)
 - For date, infer year as current year if only MM/DD given
