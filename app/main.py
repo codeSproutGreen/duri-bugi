@@ -85,6 +85,15 @@ def run_migrations():
         logging.info("Tables created directly (no alembic.ini found)")
 
 
+class _QuietPollFilter(logging.Filter):
+    """Suppress noisy polling endpoints from uvicorn access log."""
+    QUIET_PATHS = ("/api/dashboard/pending-count",)
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return not any(p in msg for p in self.QUIET_PATHS)
+
+
 def _setup_logging():
     """Ensure app loggers output to stdout for docker logs."""
     import sys
@@ -95,6 +104,8 @@ def _setup_logging():
     handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s - %(message)s"))
     app_logger.addHandler(handler)
+    # Filter noisy polling from uvicorn access log
+    logging.getLogger("uvicorn.access").addFilter(_QuietPollFilter())
 
 
 @asynccontextmanager
