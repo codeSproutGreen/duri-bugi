@@ -99,8 +99,8 @@ def _setup_logging():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    _setup_logging()
     run_migrations()
+    _setup_logging()  # Must run AFTER alembic, which resets logging via fileConfig()
     seed_accounts()
     yield
 

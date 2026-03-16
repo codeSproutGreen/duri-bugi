@@ -766,7 +766,7 @@ function app() {
       min -= range * 0.05;
       max += range * 0.05;
 
-      const x = (i) => pad.left + (i / (data.length - 1)) * cw;
+      const x = (i) => data.length <= 1 ? pad.left + cw / 2 : pad.left + (i / (data.length - 1)) * cw;
       const y = (v) => pad.top + ch - ((v - min) / (max - min)) * ch;
 
       // Grid lines
@@ -791,7 +791,7 @@ function app() {
       }
       if (data.length > 1) ctx.fillText(data[data.length - 1].date.slice(5), x(data.length - 1), H - pad.bottom + 16);
 
-      // Draw lines
+      // Draw lines and dots
       for (const s of series) {
         ctx.strokeStyle = s.color;
         ctx.lineWidth = 2;
@@ -801,6 +801,14 @@ function app() {
           i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
         }
         ctx.stroke();
+        // Draw dots (always visible, especially useful for single data points)
+        ctx.fillStyle = s.color;
+        for (let i = 0; i < data.length; i++) {
+          const px = x(i), py = y(data[i][s.key]);
+          ctx.beginPath();
+          ctx.arc(px, py, data.length <= 5 ? 4 : 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
     },
 
