@@ -150,12 +150,16 @@ class StockAccount(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     person_id = Column(Integer, ForeignKey("stock_persons.id", ondelete="CASCADE"), nullable=False)
-    name = Column(Text, nullable=False)
+    brokerage = Column(Text, nullable=False, default="")  # 증권사명
+    name = Column(Text, nullable=False)  # 계좌명 (주식계좌, 연금저축 등)
+    account_type = Column(Text, nullable=False, default="cash")  # cash=현금성, pension=연금성
+    linked_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)  # 장부 예수금 계정 연결
     sort_order = Column(Integer, nullable=False, default=0)
     created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
 
     person = relationship("StockPerson", back_populates="accounts")
     holdings = relationship("StockHolding", back_populates="account", cascade="all, delete-orphan")
+    linked_account = relationship("Account", foreign_keys=[linked_account_id])
 
 
 class StockHolding(Base):

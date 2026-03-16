@@ -26,7 +26,8 @@ def get_dashboard(db: Session = Depends(get_db)):
             continue
         account_balances.append(AccountBalance(
             id=acct.id, code=acct.code, name=acct.name,
-            type=acct.type, is_group=acct.is_group, balance=balance,
+            type=acct.type, is_group=acct.is_group,
+            parent_id=acct.parent_id, balance=balance,
         ))
         # Only non-group accounts contribute to totals (groups have no transactions)
         if acct.type in totals and not acct.is_group:

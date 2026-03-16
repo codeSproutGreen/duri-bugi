@@ -66,10 +66,12 @@ function app() {
     showStockPersonModal: false,
     showStockAccountModal: false,
     showStockHoldingModal: false,
+    showStockSellModal: false,
     showRealEstateModal: false,
     editingStockPerson: {},
     editingStockAccount: {},
     editingStockHolding: {},
+    sellingStockHolding: {},
     editingRealEstate: {},
     priceRefreshing: false,
 
@@ -321,12 +323,30 @@ function app() {
 
     quickAccounts(type) {
       if (type === 'expense') {
-        return this.allAccounts.filter(a => a.type === 'expense' && !a.is_group && !a.parent_id).slice(0, 8);
+        return this.allAccounts.filter(a => a.type === 'expense' && !a.is_group).slice(0, 8);
       }
       // payment: asset + liability (banks, cards, cash)
-      return this.allAccounts.filter(a => (a.type === 'asset' || a.type === 'liability') && !a.is_group && !a.parent_id).slice(0, 8);
+      return this.allAccounts.filter(a => (a.type === 'asset' || a.type === 'liability') && !a.is_group).slice(0, 8);
     },
 
+    acctGroupLabel(accountId) {
+      const a = this.allAccounts.find(x => x.id === accountId);
+      if (!a || !a.parent_id) return '';
+      // Walk up to find the top-level group name
+      let cur = this.allAccounts.find(x => x.id === a.parent_id);
+      while (cur && cur.parent_id) {
+        const p = this.allAccounts.find(x => x.id === cur.parent_id);
+        if (p) cur = p; else break;
+      }
+      return cur ? cur.name : '';
+    },
+    acctWithBadge(lines, side) {
+      return lines.filter(l => side === 'debit' ? l.debit > 0 : l.credit > 0)
+        .map(l => {
+          const grp = this.acctGroupLabel(l.account_id);
+          return grp ? `${l.account_name} <span style="font-size:10px;padding:1px 4px;border-radius:3px;background:var(--border);color:var(--text-muted)">${grp}</span>` : l.account_name;
+        }).join(', ');
+    },
     accountTypeLabel(type) {
       return { asset: '자산', liability: '부채', equity: '자본', income: '수익', expense: '비용' }[type] || type;
     },
@@ -858,6 +878,16 @@ function app() {
       return Math.round(this.assetSummary[key] / total * 100);
     },
 
+    groupByBrokerage(accounts) {
+      const map = {};
+      for (const a of accounts) {
+        const b = a.brokerage || '기타';
+        if (!map[b]) map[b] = { brokerage: b, accounts: [] };
+        map[b].accounts.push(a);
+      }
+      return Object.values(map);
+    },
+
     async loadAssetSummary() {
       this.assetSummary = await this.get('/assets/summary');
     },
@@ -887,11 +917,18 @@ function app() {
     },
 
     async saveStockAccount() {
-      if (!this.editingStockAccount.name) return alert('증권사명을 입력하세요');
+      if (!this.editingStockAccount.name) return alert('계좌명을 입력하세요');
+      const data = {
+        person_id: this.editingStockAccount.person_id,
+        brokerage: this.editingStockAccount.brokerage || '',
+        name: this.editingStockAccount.name,
+        account_type: this.editingStockAccount.account_type || 'cash',
+        linked_account_id: this.editingStockAccount.linked_account_id || null,
+      };
       if (this.editingStockAccount.id) {
-        await this.put(`/assets/stock/accounts/${this.editingStockAccount.id}`, { person_id: this.editingStockAccount.person_id, name: this.editingStockAccount.name });
+        await this.put(`/assets/stock/accounts/${this.editingStockAccount.id}`, data);
       } else {
-        await this.post('/assets/stock/accounts', { person_id: this.editingStockAccount.person_id, name: this.editingStockAccount.name });
+        await this.post('/assets/stock/accounts', data);
       }
       this.showStockAccountModal = false;
       this.loadStockPersons();
@@ -917,6 +954,32 @@ function app() {
     async deleteStockHolding(id) {
       await this.del(`/assets/stock/holdings/${id}`);
       this.loadStockPersons();
+    },
+
+    async sellStockHolding() {
+      const s = this.sellingStockHolding;
+      if (!s.sell_quantity || s.sell_quantity <= 0) return alert('매도 수량을 입력하세요');
+      if (!s.sell_price || s.sell_price <= 0) return alert('매도 단가를 입력하세요');
+      console.log('Sell request:', s.id, s.sell_quantity, s.sell_price);
+      const r = await fetch(API + '/assets/stock/sell', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holding_id: s.id, quantity: parseInt(s.sell_quantity), sell_price: parseInt(s.sell_price), fee: parseInt(s.fee) || 0 }),
+      });
+      const res = await r.json();
+      if (!r.ok) {
+        alert(res.detail || '매도 실패');
+        return;
+      }
+      const gl = res.realized_gain_loss;
+      const glText = gl >= 0 ? `+${this.fmt(gl)}` : this.fmt(gl);
+      let msg = `매도 완료\n매도대금: ${this.fmt(res.proceeds)}`;
+      if (res.fee) msg += `\n수수료: ${this.fmt(res.fee)}`;
+      msg += `\n실현손익: ${glText}`;
+      alert(msg);
+      this.showStockSellModal = false;
+      this.loadStockPersons();
+      if (this.assetTab === 'summary') await this.loadAssetSummary();
     },
 
     async refreshStockPrices() {
@@ -972,6 +1035,36 @@ function app() {
       });
     },
 
+    groupedAccounts(type) {
+      const all = (this.dash.accounts || []).filter(x => x.type === type);
+      const byId = {};
+      for (const a of all) byId[a.id] = a;
+      // Recursive leaf-sum for groups
+      const leafSum = (id) => {
+        const children = all.filter(a => a.parent_id === id);
+        let s = 0;
+        for (const c of children) s += c.is_group ? leafSum(c.id) : c.balance;
+        return s;
+      };
+      // Recursively flatten tree with depth
+      const result = [];
+      const addNode = (node, depth) => {
+        const children = all.filter(a => a.parent_id === node.id);
+        children.sort((a, b) => a.code.localeCompare(b.code));
+        if (node.is_group) {
+          if (children.length === 0) return;
+          result.push({ ...node, _isGroup: true, _subtotal: leafSum(node.id), _depth: depth });
+          for (const c of children) addNode(c, depth + 1);
+        } else {
+          result.push({ ...node, _isGroup: false, _depth: depth });
+        }
+      };
+      // Root nodes: no parent or parent not in this type
+      const roots = all.filter(a => !a.parent_id || !byId[a.parent_id]);
+      roots.sort((a, b) => a.code.localeCompare(b.code));
+      for (const r of roots) addNode(r, 0);
+      return result;
+    },
     typeLabel(t) {
       return { asset: '자산', liability: '부채', equity: '자본', income: '수입', expense: '비용' }[t] || t;
     },

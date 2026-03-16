@@ -358,6 +358,20 @@ h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: var(--text-m
 .asset-legend { display: flex; align-items: center; gap: 4px; color: var(--text-muted); }
 .asset-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 
+/* ── Account type badges ── */
+.acct-type-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 5px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+.badge-cash { background: var(--border); color: var(--text-muted); }
+.badge-pension { background: var(--primary); color: var(--bg); }
+
 /* ── Tables ── */
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }

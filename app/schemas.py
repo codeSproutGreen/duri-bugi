@@ -120,6 +120,7 @@ class AccountBalance(BaseModel):
     name: str
     type: str
     is_group: int = 0
+    parent_id: int | None = None
     balance: int
 
 
@@ -172,12 +173,20 @@ class StockPersonOut(BaseModel):
 
 class StockAccountCreate(BaseModel):
     person_id: int
+    brokerage: str = ""
     name: str
+    account_type: str = "cash"  # cash or pension
+    linked_account_id: int | None = None
 
 class StockAccountOut(BaseModel):
     id: int
     person_id: int
+    brokerage: str = ""
     name: str
+    account_type: str = "cash"
+    linked_account_id: int | None = None
+    linked_account_name: str | None = None
+    cash_balance: int = 0
     holdings: list["StockHoldingOut"] = []
     total_value: int = 0
     model_config = {"from_attributes": True}
@@ -194,6 +203,12 @@ class StockHoldingUpdate(BaseModel):
     name: str | None = None
     quantity: int | None = None
     avg_price: int | None = None
+
+class StockHoldingSell(BaseModel):
+    holding_id: int    # 매도 대상 종목 ID
+    quantity: int      # 매도 수량
+    sell_price: int    # 매도 단가
+    fee: int = 0       # 수수료+세금
 
 class StockHoldingOut(BaseModel):
     id: int

@@ -42,6 +42,17 @@ SEED_ACCOUNTS = [
     ("5004", "쇼핑", "expense"),
     ("5005", "의료비", "expense"),
     ("5006", "기타비용", "expense"),
+    # 추가 은행/카드
+    ("1005", "KB은행", "asset"),
+    ("2004", "현대카드", "liability"),
+    # 추가 수입
+    ("4051", "급여(남편)", "income"),
+    # 투자
+    ("1100", "투자자산", "asset"),
+    ("4100", "투자손익", "income"),
+    ("5007", "투자수수료", "expense"),
+    # 카페/음료
+    ("5011", "카페/음료", "expense"),
 ]
 
 
@@ -53,6 +64,17 @@ def seed_accounts():
                 db.add(Account(code=code, name=name, type=acct_type))
             db.commit()
             logging.info("Seeded %d default accounts", len(SEED_ACCOUNTS))
+        else:
+            # Ensure new seed accounts exist in existing DBs
+            existing = {a.code for a in db.query(Account.code).all()}
+            added = 0
+            for code, name, acct_type in SEED_ACCOUNTS:
+                if code not in existing:
+                    db.add(Account(code=code, name=name, type=acct_type))
+                    added += 1
+            if added:
+                db.commit()
+                logging.info("Added %d new seed accounts", added)
     finally:
         db.close()
 
