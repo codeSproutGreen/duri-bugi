@@ -59,15 +59,21 @@ def seed_accounts():
 
 def run_migrations():
     """Run Alembic migrations programmatically."""
-    from sqlalchemy import inspect as sa_inspect
+    from sqlalchemy import inspect as sa_inspect, text
     alembic_ini = Path(__file__).parent.parent / "alembic.ini"
     if alembic_ini.exists():
         alembic_cfg = Config(str(alembic_ini))
-        # Existing DB without alembic_version? Stamp it first.
         inspector = sa_inspect(engine)
         has_tables = inspector.has_table("accounts")
         has_alembic = inspector.has_table("alembic_version")
-        if has_tables and not has_alembic:
+        # Check if alembic_version exists but is empty (from previous failed runs)
+        alembic_stamped = False
+        if has_alembic:
+            with engine.connect() as conn:
+                row = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
+                alembic_stamped = row is not None
+        if has_tables and not alembic_stamped:
+            # Existing DB without valid alembic stamp → stamp to head
             command.stamp(alembic_cfg, "head")
             logging.info("Stamped existing DB to current alembic revision")
         else:
