@@ -425,13 +425,11 @@ function app() {
       const itemHasChildren = this.acctChildren(itemId).length > 0;
 
       if (parentDepth >= 2 || (parentDepth === 1 && itemHasChildren)) {
-        // Revert: reload
         await this.loadAccounts();
-        this.$nextTick(() => this.initAllSortables());
         return;
       }
 
-      // Collect new order from DOM (only direct .dnd-item children)
+      // Collect new order from ALL affected containers
       const reorderData = [];
       const collectOrder = (container, parentId) => {
         const items = Array.from(container.children).filter(el => el.classList.contains('dnd-item'));
@@ -442,17 +440,16 @@ function app() {
           }
         });
       };
-      collectOrder(newParentEl, newParentId);
-      if (evt.from !== evt.to) {
-        const oldParentId = evt.from.dataset.parentId ? parseInt(evt.from.dataset.parentId) : null;
-        collectOrder(evt.from, oldParentId);
-      }
+
+      // Collect from the root and all child containers in the same type section
+      const root = newParentEl.closest('.dnd-tree') || newParentEl;
+      collectOrder(root, null);
+      root.querySelectorAll('.dnd-children').forEach(el => {
+        const pid = el.dataset.parentId ? parseInt(el.dataset.parentId) : null;
+        collectOrder(el, pid);
+      });
 
       await this.put('/accounts/reorder', reorderData);
-
-      // Reload to get fresh depth/children data
-      await this.loadAccounts();
-      this.$nextTick(() => this.initAllSortables());
     },
 
     initAllSortables() {

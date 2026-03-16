@@ -324,7 +324,7 @@
             <div class="acct-section">
               <h2 x-text="typeLabel(t)"></h2>
               <div class="card dnd-card">
-                <div class="dnd-tree" :id="'dnd-root-'+t" x-init="$nextTick(()=>initSortableType(t))">
+                <div class="dnd-tree" :id="'dnd-root-'+t" >
                   <template x-for="a in acctRoots(t)" :key="a.id">
                     <div class="dnd-item" :data-id="a.id">
                       <div class="dnd-row">
@@ -393,7 +393,7 @@
             <div class="acct-section">
               <h2 x-text="typeLabel(t)"></h2>
               <div class="card dnd-card">
-                <div class="dnd-tree" :id="'dnd-root-'+t" x-init="$nextTick(()=>initSortableType(t))">
+                <div class="dnd-tree" :id="'dnd-root-'+t" >
                   <template x-for="a in acctRoots(t)" :key="a.id">
                     <div class="dnd-item" :data-id="a.id">
                       <div class="dnd-row">
