@@ -713,31 +713,74 @@
       <!-- Tab: 종합 -->
       <template x-if="assetTab==='summary'">
         <div>
-          <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
-            <div class="stat-card"><div class="stat-label">현금/예금</div><div class="stat-value" x-text="fmt(assetSummary.cash_bank)"></div></div>
-            <div class="stat-card"><div class="stat-label">주식</div><div class="stat-value" x-text="fmt(assetSummary.stocks_total)"></div></div>
-            <div class="stat-card"><div class="stat-label">부동산</div><div class="stat-value" x-text="fmt(assetSummary.realestate_total)"></div></div>
-            <div class="stat-card"><div class="stat-label">순자산</div><div class="stat-value" x-text="fmt(assetSummary.net_worth)"></div></div>
+          <!-- Net worth hero -->
+          <div class="card asset-hero">
+            <div class="label">순자산</div>
+            <div class="value" style="font-size:32px" x-text="fmt(assetSummary.net_worth)"></div>
+            <div style="margin-top:8px;font-size:13px;color:var(--text-muted)">
+              총 자산 <span x-text="fmt(assetSummary.total_assets)"></span>
+              &nbsp;—&nbsp;
+              총 부채 <span class="amount-expense" x-text="fmt(assetSummary.total_liability)"></span>
+            </div>
           </div>
-          <div class="stat-grid" style="grid-template-columns:repeat(2,1fr); margin-top:8px">
-            <div class="stat-card"><div class="stat-label">총 자산</div><div class="stat-value" x-text="fmt(assetSummary.total_assets)"></div></div>
-            <div class="stat-card"><div class="stat-label">총 부채</div><div class="stat-value amount-expense" x-text="fmt(assetSummary.total_liability)"></div></div>
+
+          <!-- Asset composition bar -->
+          <div class="card" style="margin-top:12px" x-show="assetSummary.total_assets > 0">
+            <div class="label" style="margin-bottom:8px">자산 구성</div>
+            <div class="asset-bar">
+              <div class="asset-bar-seg asset-bar-cash" :style="'width:'+assetPct('cash_bank')+'%'"
+                   x-show="assetSummary.cash_bank > 0"></div>
+              <div class="asset-bar-seg asset-bar-stock" :style="'width:'+assetPct('stocks_total')+'%'"
+                   x-show="assetSummary.stocks_total > 0"></div>
+              <div class="asset-bar-seg asset-bar-re" :style="'width:'+assetPct('realestate_total')+'%'"
+                   x-show="assetSummary.realestate_total > 0"></div>
+            </div>
+            <div style="display:flex;gap:16px;margin-top:8px;font-size:12px">
+              <span class="asset-legend"><span class="asset-dot asset-bar-cash"></span>현금/예금 <span x-text="assetPct('cash_bank')+'%'"></span></span>
+              <span class="asset-legend"><span class="asset-dot asset-bar-stock"></span>주식 <span x-text="assetPct('stocks_total')+'%'"></span></span>
+              <span class="asset-legend"><span class="asset-dot asset-bar-re"></span>부동산 <span x-text="assetPct('realestate_total')+'%'"></span></span>
+            </div>
+          </div>
+
+          <!-- Asset breakdown cards -->
+          <div class="stats" style="margin-top:12px">
+            <div class="card stat-card">
+              <div class="value" x-text="fmt(assetSummary.cash_bank)"></div>
+              <div class="label">현금/예금</div>
+            </div>
+            <div class="card stat-card">
+              <div class="value" x-text="fmt(assetSummary.stocks_total)"></div>
+              <div class="label">주식</div>
+            </div>
+            <div class="card stat-card">
+              <div class="value" x-text="fmt(assetSummary.realestate_total)"></div>
+              <div class="label">부동산</div>
+            </div>
           </div>
 
           <!-- Per-person stock summary -->
           <template x-for="person in assetSummary.stocks_by_person || []" :key="person.id">
             <div class="card" style="margin-top:12px">
-              <h3 style="margin:0 0 8px" x-text="person.name + ' 주식 ' + fmt(person.total_value)"></h3>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+                <h3 style="margin:0" x-text="person.name"></h3>
+                <span style="font-size:18px;font-weight:600" x-text="fmt(person.total_value)"></span>
+              </div>
               <template x-for="acct in person.accounts" :key="acct.id">
-                <div style="margin-bottom:8px">
-                  <div style="font-weight:500; margin-bottom:4px" x-text="acct.name + ' (' + fmt(acct.total_value) + ')'"></div>
+                <div style="margin-bottom:10px;padding:10px;border-radius:8px;background:var(--accent-bg,rgba(255,255,255,0.03))">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-weight:500">
+                    <span x-text="acct.name"></span>
+                    <span x-text="fmt(acct.total_value)"></span>
+                  </div>
                   <template x-for="h in acct.holdings" :key="h.id">
-                    <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.9em">
-                      <span x-text="h.name"></span>
+                    <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.88em">
+                      <span>
+                        <span x-text="h.name"></span>
+                        <span style="opacity:0.5;margin-left:4px" x-text="h.quantity.toLocaleString()+'주'"></span>
+                      </span>
                       <span>
                         <span x-text="fmt(h.market_value)"></span>
-                        <span style="margin-left:6px" :class="h.gain_loss >= 0 ? 'amount-income' : 'amount-expense'"
-                              x-text="(h.gain_loss>=0?'+':'') + fmt(h.gain_loss) + ' (' + h.gain_loss_pct + '%)'"></span>
+                        <span style="margin-left:6px;font-size:0.9em" :class="h.gain_loss >= 0 ? 'amount-income' : 'amount-expense'"
+                              x-text="(h.gain_loss>=0?'+':'') + h.gain_loss_pct + '%'"></span>
                       </span>
                     </div>
                   </template>
@@ -749,11 +792,17 @@
           <!-- Real estate summary -->
           <template x-if="(assetSummary.realestate_items || []).length > 0">
             <div class="card" style="margin-top:12px">
-              <h3 style="margin:0 0 8px">부동산</h3>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+                <h3 style="margin:0">부동산</h3>
+                <span style="font-size:18px;font-weight:600" x-text="fmt(assetSummary.realestate_total)"></span>
+              </div>
               <template x-for="r in assetSummary.realestate_items" :key="r.id">
-                <div style="display:flex;justify-content:space-between;padding:2px 0">
-                  <span x-text="r.name"></span>
-                  <span x-text="fmt(r.value)"></span>
+                <div style="display:flex;justify-content:space-between;padding:4px 0">
+                  <span>
+                    <span x-text="r.name"></span>
+                    <span x-show="r.memo" style="opacity:0.5;margin-left:6px;font-size:0.85em" x-text="r.memo"></span>
+                  </span>
+                  <span style="font-weight:500" x-text="fmt(r.value)"></span>
                 </div>
               </template>
             </div>

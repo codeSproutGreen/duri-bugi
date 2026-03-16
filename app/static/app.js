@@ -852,6 +852,12 @@ function app() {
     },
 
     // ── Assets ──
+    assetPct(key) {
+      const total = this.assetSummary.total_assets;
+      if (!total) return '0';
+      return Math.round(this.assetSummary[key] / total * 100);
+    },
+
     async loadAssetSummary() {
       this.assetSummary = await this.get('/assets/summary');
     },
