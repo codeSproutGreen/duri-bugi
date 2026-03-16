@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime
 
-import anthropic
+from google import genai
 
 from app.config import settings
 
@@ -35,13 +35,23 @@ Rules:
 
 
 def _get_client():
-    return anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    return genai.Client(api_key=settings.gemini_api_key)
+
+
+def _strip_code_fences(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+    return text
 
 
 def parse_message(source_name: str, content: str) -> dict | None:
-    """Parse a financial message using Claude API. Returns parsed dict or None."""
-    if not settings.anthropic_api_key or settings.anthropic_api_key == "your-key-here":
-        log.warning("Anthropic API key not configured")
+    """Parse a financial message using Gemini API. Returns parsed dict or None."""
+    if not settings.gemini_api_key:
+        log.warning("Gemini API key not configured")
         return None
 
     try:
@@ -49,21 +59,12 @@ def parse_message(source_name: str, content: str) -> dict | None:
         today = datetime.now().strftime("%Y-%m-%d")
         user_msg = f"today: {today}\nsource_name: {source_name}\nmessage: {content}"
 
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_msg}],
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"{SYSTEM_PROMPT}\n\n{user_msg}",
         )
 
-        text = response.content[0].text.strip()
-        # Strip markdown code fences if present
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
+        text = _strip_code_fences(response.text)
         parsed = json.loads(text)
         log.info("AI parsed: type=%s amount=%s merchant=%s",
                  parsed.get("transaction_type"), parsed.get("amount"), parsed.get("merchant"))
@@ -77,14 +78,13 @@ def parse_message(source_name: str, content: str) -> dict | None:
 
 
 def parse_messages_batch(messages: list[tuple[str, str]]) -> list[dict | None]:
-    """Parse multiple messages in a single API call for cost efficiency.
-    Each tuple is (source_name, content). Returns list of parsed dicts."""
+    """Parse multiple messages in a single API call for cost efficiency."""
     if not messages:
         return []
     if len(messages) == 1:
         return [parse_message(messages[0][0], messages[0][1])]
 
-    if not settings.anthropic_api_key or settings.anthropic_api_key == "your-key-here":
+    if not settings.gemini_api_key:
         return [None] * len(messages)
 
     try:
@@ -96,20 +96,12 @@ def parse_messages_batch(messages: list[tuple[str, str]]) -> list[dict | None]:
         )
         user_msg = f"today: {today}\nParse each message below and return a JSON array with one object per message in order:\n\n{numbered}"
 
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=1024,
-            system=SYSTEM_PROMPT + "\nWhen given multiple messages, return a JSON array of objects.",
-            messages=[{"role": "user", "content": user_msg}],
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=f"{SYSTEM_PROMPT}\nWhen given multiple messages, return a JSON array of objects.\n\n{user_msg}",
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
-            text = text.strip()
-
+        text = _strip_code_fences(response.text)
         results = json.loads(text)
         if isinstance(results, list):
             return results

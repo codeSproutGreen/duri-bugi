@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install dependencies first (cache layer)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir fastapi[standard] uvicorn[standard] sqlalchemy anthropic pydantic-settings python-multipart aiofiles
+RUN pip install --no-cache-dir fastapi[standard] uvicorn[standard] sqlalchemy google-genai pydantic-settings python-multipart aiofiles
 
 # Copy app source
 COPY app/ app/

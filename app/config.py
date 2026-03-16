@@ -2,7 +2,8 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    anthropic_api_key: str = ""
+    anthropic_api_key: str = ""  # Deprecated: kept for backward compat
+    gemini_api_key: str = ""
     auth_token: str = "change-me"
     webhook_secret: str = ""
     database_url: str = "sqlite:///ledger.db"

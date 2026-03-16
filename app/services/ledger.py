@@ -14,10 +14,10 @@ log = logging.getLogger(__name__)
 
 # Account type → default account code prefix mapping
 TYPE_DEFAULTS = {
-    "expense": "5060",     # 기타비용
-    "asset": "1040",       # 현금
-    "liability": "2010",   # KB국민카드
-    "income": "4030",      # 기타수입
+    "expense": "5006",     # 기타비용
+    "asset": "1004",       # 현금
+    "liability": "2001",   # KB국민카드
+    "income": "4003",      # 기타수입
 }
 
 
@@ -69,6 +69,7 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
             entry_date=datetime.fromtimestamp(msg.timestamp / 1000).strftime("%Y-%m-%d"),
             description=f"{rule.merchant_pattern} ({msg.source_name})",
             raw_message_id=msg.id,
+            source="webhook",
             is_confirmed=0,
         )
         db.add(entry)
@@ -129,6 +130,7 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
         description=description,
         memo=parsed.get("memo", ""),
         raw_message_id=msg.id,
+        source="webhook",
         is_confirmed=0,
     )
     db.add(entry)
