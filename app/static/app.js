@@ -566,10 +566,11 @@ function app() {
 
     async saveAcct() {
       if (!this.editingAcct.name) return alert('이름을 입력하세요');
-      // Check duplicate name
+      // Check duplicate name within same type + same group
       const sameTypeAccts = this.acctList[this.editingAcct.type] || [];
-      const dup = sameTypeAccts.find(a => a.name === this.editingAcct.name && a.id !== this.editingAcct.id);
-      if (dup) return alert(`"${this.editingAcct.name}" 이름의 계정이 이미 존재합니다.`);
+      const pid = this.editingAcct.parent_id || null;
+      const dup = sameTypeAccts.find(a => a.name === this.editingAcct.name && a.id !== this.editingAcct.id && (a.parent_id || null) === pid);
+      if (dup) return alert(`"${this.editingAcct.name}" 이름의 계정이 같은 그룹에 이미 존재합니다.`);
       const data = { ...this.editingAcct };
       if (data.parent_id === '' || data.parent_id === 'null') data.parent_id = null;
       if (this.editingAcct.id) {
