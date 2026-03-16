@@ -38,6 +38,7 @@ function app() {
     filterDebitIds: [],
     filterCreditIds: [],
     showFilterPanel: false,
+    filterOpenTypes: {},
     _lastConfirmed: null,
 
     // Accounts

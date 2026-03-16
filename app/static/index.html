@@ -354,43 +354,71 @@
             <button class="btn btn-sm btn-outline" x-show="hasActiveFilters()" @click="clearFilters()">초기화</button>
           </div>
           <div x-show="showFilterPanel" x-cloak class="card" style="padding:12px;margin-bottom:12px">
-            <div style="display:flex;gap:16px;flex-wrap:wrap">
-              <div style="flex:1;min-width:200px">
-                <label style="font-weight:600;margin-bottom:6px">차변</label>
-                <div style="max-height:180px;overflow-y:auto">
-                  <template x-for="t in groupedSelectableAccounts()" :key="t.type">
-                    <div style="margin-bottom:4px">
-                      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin:4px 0 2px" x-text="t.label"></div>
-                      <template x-for="item in t.items" :key="item.id">
-                        <template x-if="!item.isHeader">
-                          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:1px 0"
-                                 :style="'padding-left:'+(item.depth*12)+'px'">
-                            <input type="checkbox" :checked="filterDebitIds.includes(item.id)"
-                                   @change="toggleFilterAcct('debit', item.id)">
-                            <span x-text="item.code+' '+item.name"></span>
-                          </label>
+            <div x-show="availableGroups().length > 0" class="group-filter" style="margin-bottom:10px">
+              <span class="group-filter-label">그룹</span>
+              <div class="group-filter-chips">
+                <template x-for="g in availableGroups()" :key="g.name">
+                  <label :class="isGroupNameVisible(g.ids) ? 'group-chip group-chip-active' : 'group-chip'" @click="toggleGroupFilter(g.ids)">
+                    <span x-text="g.name"></span>
+                  </label>
+                </template>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:10px">
+                <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:var(--text)">차변</div>
+                <div style="max-height:220px;overflow-y:auto">
+                  <template x-for="t in allGroupedAccounts()" :key="t.type">
+                    <div style="margin-bottom:2px">
+                      <div @click="filterOpenTypes['d_'+t.type] = !filterOpenTypes['d_'+t.type]"
+                           style="font-size:12px;color:var(--text-muted);font-weight:600;padding:4px 0;cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none">
+                        <span x-text="filterOpenTypes['d_'+t.type] ? '▾' : '▸'" style="font-size:10px;width:10px"></span>
+                        <span x-text="t.label"></span>
+                      </div>
+                      <div x-show="filterOpenTypes['d_'+t.type]">
+                        <template x-for="g in t.groups" :key="g.label || '_ungrouped'">
+                          <div style="margin-bottom:2px">
+                            <div x-show="g.label" style="font-size:11px;color:var(--text-muted);font-weight:600;padding:3px 0 1px"
+                                 x-text="g.label"></div>
+                            <template x-for="a in g.accounts" :key="a.id">
+                              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:1px 0;padding-left:8px">
+                                <input type="checkbox" :checked="filterDebitIds.includes(a.id)"
+                                       @change="toggleFilterAcct('debit', a.id)">
+                                <span x-text="a.code+' '+a.name"></span>
+                              </label>
+                            </template>
+                          </div>
                         </template>
-                      </template>
+                      </div>
                     </div>
                   </template>
                 </div>
               </div>
-              <div style="flex:1;min-width:200px">
-                <label style="font-weight:600;margin-bottom:6px">대변</label>
-                <div style="max-height:180px;overflow-y:auto">
-                  <template x-for="t in groupedSelectableAccounts()" :key="t.type">
-                    <div style="margin-bottom:4px">
-                      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin:4px 0 2px" x-text="t.label"></div>
-                      <template x-for="item in t.items" :key="item.id">
-                        <template x-if="!item.isHeader">
-                          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:1px 0"
-                                 :style="'padding-left:'+(item.depth*12)+'px'">
-                            <input type="checkbox" :checked="filterCreditIds.includes(item.id)"
-                                   @change="toggleFilterAcct('credit', item.id)">
-                            <span x-text="item.code+' '+item.name"></span>
-                          </label>
+              <div style="flex:1;min-width:200px;border:1px solid var(--border);border-radius:8px;padding:10px">
+                <div style="font-size:15px;font-weight:700;margin-bottom:8px;color:var(--text)">대변</div>
+                <div style="max-height:220px;overflow-y:auto">
+                  <template x-for="t in allGroupedAccounts()" :key="t.type">
+                    <div style="margin-bottom:2px">
+                      <div @click="filterOpenTypes['c_'+t.type] = !filterOpenTypes['c_'+t.type]"
+                           style="font-size:12px;color:var(--text-muted);font-weight:600;padding:4px 0;cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none">
+                        <span x-text="filterOpenTypes['c_'+t.type] ? '▾' : '▸'" style="font-size:10px;width:10px"></span>
+                        <span x-text="t.label"></span>
+                      </div>
+                      <div x-show="filterOpenTypes['c_'+t.type]">
+                        <template x-for="g in t.groups" :key="g.label || '_ungrouped'">
+                          <div style="margin-bottom:2px">
+                            <div x-show="g.label" style="font-size:11px;color:var(--text-muted);font-weight:600;padding:3px 0 1px"
+                                 x-text="g.label"></div>
+                            <template x-for="a in g.accounts" :key="a.id">
+                              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:1px 0;padding-left:8px">
+                                <input type="checkbox" :checked="filterCreditIds.includes(a.id)"
+                                       @change="toggleFilterAcct('credit', a.id)">
+                                <span x-text="a.code+' '+a.name"></span>
+                              </label>
+                            </template>
+                          </div>
                         </template>
-                      </template>
+                      </div>
                     </div>
                   </template>
                 </div>
