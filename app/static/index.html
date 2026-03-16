@@ -801,11 +801,10 @@
       </div>
       <div class="form-group">
         <label>상위 계정 (그룹)</label>
-        <select x-model.number="editingAcct.parent_id">
-          <option :value="null">없음 (최상위)</option>
+        <select x-model="editingAcct.parent_id" @change="editingAcct.parent_id = $event.target.value === '' ? null : Number($event.target.value)">
+          <option value="">없음 (최상위)</option>
           <template x-for="p in parentCandidates()" :key="p.id">
-            <option :value="p.id" x-text="'  '.repeat(p.depth) + p.code + ' ' + p.name"
-                    :disabled="p.id === editingAcct.id || p.depth >= 2"></option>
+            <option :value="p.id" :selected="editingAcct.parent_id === p.id" x-text="p.code + ' ' + p.name"></option>
           </template>
         </select>
       </div>
