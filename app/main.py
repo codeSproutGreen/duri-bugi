@@ -86,12 +86,15 @@ def run_migrations():
 
 
 def _setup_logging():
-    """Wire app loggers to uvicorn's handlers so they show in docker logs."""
-    uv_error = logging.getLogger("uvicorn.error")
-    if uv_error.handlers:
-        app_logger = logging.getLogger("app")
-        app_logger.setLevel(logging.INFO)
-        app_logger.handlers = uv_error.handlers
+    """Ensure app loggers output to stdout for docker logs."""
+    import sys
+    app_logger = logging.getLogger("app")
+    app_logger.setLevel(logging.INFO)
+    # Always add a direct StreamHandler to stdout
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s - %(message)s"))
+    app_logger.addHandler(handler)
 
 
 @asynccontextmanager
