@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from datetime import datetime
 
 from sqlalchemy import func
@@ -11,6 +12,12 @@ from app.models import (
 from app.services.ai_parser import parse_message
 
 log = logging.getLogger(__name__)
+
+# 온통대전 SMS 패턴
+_ONTONG_RE = re.compile(
+    r'온통대전\s*체크카드.*?승인\s*([\d,]+)\s*원\s*캐시백적립\s*([\d,]+)\s*원\s*'
+    r'(\d{2}/\d{2})\s*\d{2}:\d{2}\s*(.+?)\s*잔액'
+)
 
 # Account type → default account code prefix mapping
 TYPE_DEFAULTS = {
@@ -90,8 +97,102 @@ def check_category_rules(db: Session, content: str) -> CategoryRule | None:
     return None
 
 
+def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
+    """Handle 온통대전 체크카드 SMS — creates 2 entries (purchase + cashback)."""
+    m = _ONTONG_RE.search(msg.content)
+    if not m:
+        return None
+
+    amount = int(m.group(1).replace(",", ""))
+    cashback = int(m.group(2).replace(",", ""))
+    date_mm_dd = m.group(3)  # "03/16"
+    merchant = m.group(4).strip()
+
+    year = datetime.now().year
+    month, day = date_mm_dd.split("/")
+    entry_date = f"{year}-{month}-{day}"
+
+    # Find 온통대전 accounts by code
+    ontong_charge = _find_account_by_code(db, "1020")   # 온통대전(충전액)
+    ontong_cb = _find_account_by_code(db, "1021")       # 온통대전(캐시백)
+    cb_income = _find_account_by_code(db, "4004")       # 캐시백수입
+
+    if not ontong_charge or not ontong_cb or not cb_income:
+        log.warning("온통대전 accounts not found (1020/1021/4004)")
+        return None
+
+    # Determine expense account: check rules → AI → default
+    expense_acct = None
+    rule = check_category_rules(db, msg.content)
+    if rule and rule.debit_account_id:
+        expense_acct = db.query(Account).get(rule.debit_account_id)
+        if expense_acct:
+            rule.hit_count += 1
+            rule.updated_at = datetime.now().isoformat()
+
+    if not expense_acct:
+        # Try AI for expense categorization
+        accounts_ctx = _build_accounts_context(db)
+        history_ctx = _build_history_context(db)
+        device_name = getattr(msg, "device_name", "") or ""
+        parsed = parse_message(msg.source_name, msg.content,
+                               accounts_context=accounts_ctx,
+                               history_context=history_ctx,
+                               device_name=device_name)
+        if parsed:
+            msg.ai_result = json.dumps(parsed, ensure_ascii=False)
+            expense_acct = _find_account_by_code(db, parsed.get("suggested_debit_code"))
+
+    if not expense_acct:
+        expense_acct = find_account_by_type(db, "expense")  # 기타비용 fallback
+
+    if not expense_acct:
+        return None
+
+    entries = []
+
+    # Entry 1: 차변 비용 / 대변 온통대전(충전액)
+    e1 = JournalEntry(
+        entry_date=entry_date, description=merchant,
+        memo="온통대전 체크카드",
+        raw_message_id=msg.id, source="webhook", is_confirmed=0,
+    )
+    db.add(e1)
+    db.flush()
+    db.add(JournalLine(entry_id=e1.id, account_id=expense_acct.id, debit=amount, credit=0))
+    db.add(JournalLine(entry_id=e1.id, account_id=ontong_charge.id, debit=0, credit=amount))
+    entries.append(e1)
+
+    # Entry 2: 차변 온통대전(캐시백) / 대변 캐시백수입
+    if cashback > 0:
+        e2 = JournalEntry(
+            entry_date=entry_date, description=f"캐시백 - {merchant}",
+            memo="온통대전 캐시백적립",
+            raw_message_id=msg.id, source="webhook", is_confirmed=0,
+        )
+        db.add(e2)
+        db.flush()
+        db.add(JournalLine(entry_id=e2.id, account_id=ontong_cb.id, debit=cashback, credit=0))
+        db.add(JournalLine(entry_id=e2.id, account_id=cb_income.id, debit=0, credit=cashback))
+        entries.append(e2)
+
+    msg.status = "parsed"
+    msg.ai_result = json.dumps({
+        "source": "ontong", "amount": amount, "cashback": cashback,
+        "merchant": merchant, "date": entry_date,
+    }, ensure_ascii=False)
+    db.commit()
+    log.info("온통대전: %s %d원, 캐시백 %d원 → %d entries", merchant, amount, cashback, len(entries))
+    return entries
+
+
 def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
     """Process a raw message: check rules, then AI parse, create journal entry."""
+
+    # 0. Special handlers (온통대전 etc.)
+    ontong_result = _handle_ontong(db, msg)
+    if ontong_result is not None:
+        return ontong_result[0] if ontong_result else None
 
     # 1. Check category rules first (free, no API call)
     rule = check_category_rules(db, msg.content)

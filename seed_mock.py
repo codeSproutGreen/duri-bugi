@@ -35,6 +35,8 @@ ACCOUNTS = [
     ("1003", "토스",        "asset", 0, "1060"),      # L3 leaf
     ("1005", "KB은행",      "asset", 0, "1060"),      # L3 leaf
     ("1004", "현금",        "asset", 0, None),        # L1 standalone
+    ("1020", "온통대전(충전액)", "asset", 0, "1000"),  # L2 leaf (아내)
+    ("1021", "온통대전(캐시백)", "asset", 0, "1000"),  # L2 leaf (아내)
     ("1100", "투자자산",    "asset", 0, None),        # L1 standalone
 
     # ── 부채 ──
@@ -55,6 +57,7 @@ ACCOUNTS = [
     ("4050", "남편",        "income", 1, None),       # L1 group
     ("4051", "급여",        "income", 0, "4050"),     # L2 leaf
     ("4003", "기타수입",    "income", 0, None),       # L1 standalone
+    ("4004", "캐시백수입",  "income", 0, None),       # L1 standalone
     ("4100", "투자손익",    "income", 0, None),       # L1 standalone
 
     # ── 비용 ──
