@@ -408,6 +408,7 @@ input:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-bg);
 }
+select option:disabled { color: var(--text-muted); font-weight: 600; font-style: normal; }
 label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px; font-weight: 500; }
 .form-group { margin-bottom: 12px; }
 .form-row { display: flex; gap: 12px; }
@@ -752,8 +753,8 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
   .amount { font-size: 12px; }
   .stats .card { padding: 8px; }
   .acct-pick { font-size: 11px; padding: 5px 8px; }
-  .td-acct { font-size: 10px; }
-  .td-desc { max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-acct { font-size: 10px; max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-desc-text { max-width: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 @media (max-width: 640px) {
   html { font-size: 12px; }

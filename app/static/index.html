@@ -353,23 +353,23 @@
                   <tr @click="selectedEntryId = selectedEntryId === e.id ? null : e.id"
                       :class="{'row-selected': selectedEntryId === e.id}" style="cursor:pointer">
                     <td x-text="fmtDate(e.entry_date)"></td>
-                    <td class="td-desc" x-text="e.description" :title="e.description"></td>
+                    <td class="td-desc">
+                      <div x-text="e.description" :title="e.description" class="td-desc-text"></div>
+                      <div class="mobile-only" x-show="selectedEntryId === e.id" @click.stop
+                           style="margin-top:4px;white-space:normal;font-size:11px;color:var(--text-muted)"
+                           x-text="e.description"></div>
+                      <div class="mobile-only" x-show="selectedEntryId === e.id" @click.stop
+                           style="margin-top:4px;display:flex;gap:4px">
+                        <button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button>
+                        <button class="btn btn-sm btn-danger" @click="deleteEntry(e.id)">삭제</button>
+                      </div>
+                    </td>
                     <td class="amount" x-text="fmt(Math.max(...e.lines.map(l=>l.debit)))"></td>
                     <td class="td-acct" x-html="acctWithBadge(e.lines,'debit')"></td>
                     <td class="td-acct" x-html="acctWithBadge(e.lines,'credit')"></td>
                     <td class="mobile-hide" style="white-space:nowrap" @click.stop>
                       <button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button>
                       <button class="btn btn-sm btn-danger" @click="deleteEntry(e.id)">삭제</button>
-                    </td>
-                  </tr>
-                  <!-- Mobile action row -->
-                  <tr class="mobile-only" x-show="selectedEntryId === e.id" x-collapse>
-                    <td colspan="5" style="padding:6px 8px">
-                      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px" x-text="e.description"></div>
-                      <div style="text-align:right">
-                        <button class="btn btn-sm btn-outline" @click.stop="editExistingEntry(e)">수정</button>
-                        <button class="btn btn-sm btn-danger" @click.stop="deleteEntry(e.id)">삭제</button>
-                      </div>
                     </td>
                   </tr>
                 </template>
@@ -1217,13 +1217,10 @@
           <select x-model.number="editDebitAcct">
             <template x-for="t in groupedSelectableAccounts()" :key="t.type">
               <optgroup :label="t.label">
-                <template x-for="a in t.ungrouped" :key="a.id">
-                  <option :value="a.id" x-text="a.code+' '+a.name"></option>
-                </template>
-                <template x-for="g in t.groups" :key="g.label">
-                  <template x-for="a in g.accounts" :key="a.id">
-                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'"></option>
-                  </template>
+                <template x-for="item in t.items" :key="item.id">
+                  <option :value="item.isHeader ? '' : item.id"
+                          :disabled="item.isHeader"
+                          x-text="'\u00A0'.repeat(item.depth*2)+(item.isHeader ? '\u25B8 '+item.name : item.code+' '+item.name)"></option>
                 </template>
               </optgroup>
             </template>
@@ -1234,13 +1231,10 @@
           <select x-model.number="editCreditAcct">
             <template x-for="t in groupedSelectableAccounts()" :key="t.type">
               <optgroup :label="t.label">
-                <template x-for="a in t.ungrouped" :key="a.id">
-                  <option :value="a.id" x-text="a.code+' '+a.name"></option>
-                </template>
-                <template x-for="g in t.groups" :key="g.label">
-                  <template x-for="a in g.accounts" :key="a.id">
-                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'"></option>
-                  </template>
+                <template x-for="item in t.items" :key="item.id">
+                  <option :value="item.isHeader ? '' : item.id"
+                          :disabled="item.isHeader"
+                          x-text="'\u00A0'.repeat(item.depth*2)+(item.isHeader ? '\u25B8 '+item.name : item.code+' '+item.name)"></option>
                 </template>
               </optgroup>
             </template>
@@ -1323,13 +1317,10 @@
           <select x-model.number="editingRule.debit_account_id">
             <template x-for="t in groupedSelectableAccounts()" :key="t.type">
               <optgroup :label="t.label">
-                <template x-for="a in t.ungrouped" :key="a.id">
-                  <option :value="a.id" x-text="a.code+' '+a.name" :selected="a.id===editingRule.debit_account_id"></option>
-                </template>
-                <template x-for="g in t.groups" :key="g.label">
-                  <template x-for="a in g.accounts" :key="a.id">
-                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'" :selected="a.id===editingRule.debit_account_id"></option>
-                  </template>
+                <template x-for="item in t.items" :key="item.id">
+                  <option :value="item.isHeader ? '' : item.id"
+                          :disabled="item.isHeader"
+                          x-text="'\u00A0'.repeat(item.depth*2)+(item.isHeader ? '\u25B8 '+item.name : item.code+' '+item.name)"></option>
                 </template>
               </optgroup>
             </template>
@@ -1340,13 +1331,10 @@
           <select x-model.number="editingRule.credit_account_id">
             <template x-for="t in groupedSelectableAccounts()" :key="t.type">
               <optgroup :label="t.label">
-                <template x-for="a in t.ungrouped" :key="a.id">
-                  <option :value="a.id" x-text="a.code+' '+a.name" :selected="a.id===editingRule.credit_account_id"></option>
-                </template>
-                <template x-for="g in t.groups" :key="g.label">
-                  <template x-for="a in g.accounts" :key="a.id">
-                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'" :selected="a.id===editingRule.credit_account_id"></option>
-                  </template>
+                <template x-for="item in t.items" :key="item.id">
+                  <option :value="item.isHeader ? '' : item.id"
+                          :disabled="item.isHeader"
+                          x-text="'\u00A0'.repeat(item.depth*2)+(item.isHeader ? '\u25B8 '+item.name : item.code+' '+item.name)"></option>
                 </template>
               </optgroup>
             </template>

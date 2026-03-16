@@ -301,24 +301,29 @@ function app() {
 
     groupedSelectableAccounts() {
       const typeOrder = ['asset', 'liability', 'expense', 'income', 'equity'];
+      const byId = {};
+      for (const a of this.allAccounts) byId[a.id] = a;
       const result = [];
       for (const type of typeOrder) {
-        const accts = this.allAccounts.filter(a => a.type === type && !a.is_group);
-        if (!accts.length) continue;
-        // Separate grouped and ungrouped
-        const ungrouped = accts.filter(a => !a.parent_id);
-        const grouped = accts.filter(a => a.parent_id);
-        // Collect groups
-        const groupMap = {};
-        for (const a of grouped) {
-          if (!groupMap[a.parent_id]) {
-            const parent = this.allAccounts.find(p => p.id === a.parent_id);
-            groupMap[a.parent_id] = { label: parent ? parent.name : '기타', accounts: [], sort: parent ? parent.sort_order : 99999 };
+        const all = this.allAccounts.filter(a => a.type === type);
+        if (!all.some(a => !a.is_group)) continue;
+        // Build flat list with indent via tree walk
+        const items = [];
+        const addNode = (node, depth) => {
+          const children = all.filter(a => a.parent_id === node.id);
+          children.sort((a, b) => a.code.localeCompare(b.code));
+          if (node.is_group) {
+            // Group header (non-selectable)
+            items.push({ id: 'g_' + node.id, name: node.name, isHeader: true, depth });
+            for (const c of children) addNode(c, depth + 1);
+          } else {
+            items.push({ id: node.id, code: node.code, name: node.name, isHeader: false, depth });
           }
-          groupMap[a.parent_id].accounts.push(a);
-        }
-        const groups = Object.values(groupMap).sort((a, b) => a.sort - b.sort);
-        result.push({ type, label: this.accountTypeLabel(type), ungrouped, groups });
+        };
+        const roots = all.filter(a => !a.parent_id || !byId[a.parent_id] || byId[a.parent_id].type !== type);
+        roots.sort((a, b) => a.code.localeCompare(b.code));
+        for (const r of roots) addNode(r, 0);
+        result.push({ type, label: this.accountTypeLabel(type), items });
       }
       return result;
     },
