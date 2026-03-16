@@ -28,6 +28,7 @@ function app() {
     acctTab: 'asset',
     allAccounts: [],
     acctEditMode: false,
+    acctPendingDeletes: [],
     _sortables: [],
 
     // Report
@@ -351,11 +352,36 @@ function app() {
     },
 
     toggleAcctEditMode() {
+      if (this.acctEditMode) {
+        // "완료" clicked — apply pending deletes
+        this.applyAcctDeletes();
+      } else {
+        this.acctPendingDeletes = [];
+      }
       this.acctEditMode = !this.acctEditMode;
       if (!this.acctEditMode) {
         this.destroySortables();
         this.loadAccounts();
       }
+    },
+
+    markAcctDelete(id) {
+      if (this.acctPendingDeletes.includes(id)) {
+        this.acctPendingDeletes = this.acctPendingDeletes.filter(x => x !== id);
+      } else {
+        this.acctPendingDeletes.push(id);
+      }
+    },
+
+    async applyAcctDeletes() {
+      for (const id of this.acctPendingDeletes) {
+        const res = await fetch(`${API}/accounts/${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.detail || '삭제 실패');
+        }
+      }
+      this.acctPendingDeletes = [];
     },
 
     destroySortables() {

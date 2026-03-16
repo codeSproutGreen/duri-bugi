@@ -357,30 +357,39 @@
                 <div class="card dnd-card">
                   <div class="dnd-tree" :id="'dnd-root-'+t" x-init="$nextTick(()=>initSortableType(t))">
                     <template x-for="a in acctRoots(t)" :key="a.id">
-                      <div class="dnd-item" :data-id="a.id">
+                      <div class="dnd-item" :data-id="a.id" :class="acctPendingDeletes.includes(a.id) && 'dnd-marked-delete'">
                         <div class="dnd-row">
                           <span class="dnd-handle" title="드래그">⠿</span>
                           <span class="dnd-code" x-text="a.code"></span>
                           <span x-text="a.name"></span>
-                          <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...a}; showAcctModal=true">수정</button>
+                          <div style="margin-left:auto;display:flex;gap:4px">
+                            <button class="btn btn-sm btn-outline" @click="editingAcct={...a}; showAcctModal=true">수정</button>
+                            <button class="btn btn-sm" :class="acctPendingDeletes.includes(a.id)?'btn-outline':'btn-danger'" @click="markAcctDelete(a.id)" x-text="acctPendingDeletes.includes(a.id)?'복원':'삭제'"></button>
+                          </div>
                         </div>
                         <div class="dnd-children" :data-parent-id="a.id">
                           <template x-for="b in acctChildren(a.id)" :key="b.id">
-                            <div class="dnd-item" :data-id="b.id">
+                            <div class="dnd-item" :data-id="b.id" :class="acctPendingDeletes.includes(b.id) && 'dnd-marked-delete'">
                               <div class="dnd-row">
                                 <span class="dnd-handle" title="드래그">⠿</span>
                                 <span class="dnd-code" x-text="b.code"></span>
                                 <span x-text="b.name"></span>
-                                <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...b}; showAcctModal=true">수정</button>
+                                <div style="margin-left:auto;display:flex;gap:4px">
+                                  <button class="btn btn-sm btn-outline" @click="editingAcct={...b}; showAcctModal=true">수정</button>
+                                  <button class="btn btn-sm" :class="acctPendingDeletes.includes(b.id)?'btn-outline':'btn-danger'" @click="markAcctDelete(b.id)" x-text="acctPendingDeletes.includes(b.id)?'복원':'삭제'"></button>
+                                </div>
                               </div>
                               <div class="dnd-children dnd-depth2" :data-parent-id="b.id">
                                 <template x-for="c in acctChildren(b.id)" :key="c.id">
-                                  <div class="dnd-item" :data-id="c.id">
+                                  <div class="dnd-item" :data-id="c.id" :class="acctPendingDeletes.includes(c.id) && 'dnd-marked-delete'">
                                     <div class="dnd-row">
                                       <span class="dnd-handle" title="드래그">⠿</span>
                                       <span class="dnd-code" x-text="c.code"></span>
                                       <span x-text="c.name"></span>
-                                      <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...c}; showAcctModal=true">수정</button>
+                                      <div style="margin-left:auto;display:flex;gap:4px">
+                                        <button class="btn btn-sm btn-outline" @click="editingAcct={...c}; showAcctModal=true">수정</button>
+                                        <button class="btn btn-sm" :class="acctPendingDeletes.includes(c.id)?'btn-outline':'btn-danger'" @click="markAcctDelete(c.id)" x-text="acctPendingDeletes.includes(c.id)?'복원':'삭제'"></button>
+                                      </div>
                                     </div>
                                   </div>
                                 </template>
@@ -425,30 +434,39 @@
                 <div class="card dnd-card">
                   <div class="dnd-tree" :id="'dnd-root-'+t" x-init="$nextTick(()=>initSortableType(t))">
                     <template x-for="a in acctRoots(t)" :key="a.id">
-                      <div class="dnd-item" :data-id="a.id">
+                      <div class="dnd-item" :data-id="a.id" :class="acctPendingDeletes.includes(a.id) && 'dnd-marked-delete'">
                         <div class="dnd-row">
                           <span class="dnd-handle" title="드래그">⠿</span>
                           <span class="dnd-code" x-text="a.code"></span>
                           <span x-text="a.name"></span>
-                          <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...a}; showAcctModal=true">수정</button>
+                          <div style="margin-left:auto;display:flex;gap:4px">
+                            <button class="btn btn-sm btn-outline" @click="editingAcct={...a}; showAcctModal=true">수정</button>
+                            <button class="btn btn-sm" :class="acctPendingDeletes.includes(a.id)?'btn-outline':'btn-danger'" @click="markAcctDelete(a.id)" x-text="acctPendingDeletes.includes(a.id)?'복원':'삭제'"></button>
+                          </div>
                         </div>
                         <div class="dnd-children" :data-parent-id="a.id">
                           <template x-for="b in acctChildren(a.id)" :key="b.id">
-                            <div class="dnd-item" :data-id="b.id">
+                            <div class="dnd-item" :data-id="b.id" :class="acctPendingDeletes.includes(b.id) && 'dnd-marked-delete'">
                               <div class="dnd-row">
                                 <span class="dnd-handle" title="드래그">⠿</span>
                                 <span class="dnd-code" x-text="b.code"></span>
                                 <span x-text="b.name"></span>
-                                <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...b}; showAcctModal=true">수정</button>
+                                <div style="margin-left:auto;display:flex;gap:4px">
+                                  <button class="btn btn-sm btn-outline" @click="editingAcct={...b}; showAcctModal=true">수정</button>
+                                  <button class="btn btn-sm" :class="acctPendingDeletes.includes(b.id)?'btn-outline':'btn-danger'" @click="markAcctDelete(b.id)" x-text="acctPendingDeletes.includes(b.id)?'복원':'삭제'"></button>
+                                </div>
                               </div>
                               <div class="dnd-children dnd-depth2" :data-parent-id="b.id">
                                 <template x-for="c in acctChildren(b.id)" :key="c.id">
-                                  <div class="dnd-item" :data-id="c.id">
+                                  <div class="dnd-item" :data-id="c.id" :class="acctPendingDeletes.includes(c.id) && 'dnd-marked-delete'">
                                     <div class="dnd-row">
                                       <span class="dnd-handle" title="드래그">⠿</span>
                                       <span class="dnd-code" x-text="c.code"></span>
                                       <span x-text="c.name"></span>
-                                      <button class="btn btn-sm btn-outline" style="margin-left:auto" @click="editingAcct={...c}; showAcctModal=true">수정</button>
+                                      <div style="margin-left:auto;display:flex;gap:4px">
+                                        <button class="btn btn-sm btn-outline" @click="editingAcct={...c}; showAcctModal=true">수정</button>
+                                        <button class="btn btn-sm" :class="acctPendingDeletes.includes(c.id)?'btn-outline':'btn-danger'" @click="markAcctDelete(c.id)" x-text="acctPendingDeletes.includes(c.id)?'복원':'삭제'"></button>
+                                      </div>
                                     </div>
                                   </div>
                                 </template>
@@ -796,7 +814,7 @@
 <!-- Account Modal -->
 <template x-if="showAcctModal">
   <div class="modal-bg" @click.self="showAcctModal=false">
-    <div class="modal">
+    <div class="modal" @keydown.enter.prevent="saveAcct()">
       <h2 x-text="editingAcct.id ? '계정 수정' : '계정 추가'"></h2>
       <div class="form-group">
         <label>유형</label>
@@ -826,14 +844,9 @@
         <label>이름 (이모지 사용 가능)</label>
         <input type="text" x-model="editingAcct.name" placeholder="🍔 외식">
       </div>
-      <div style="display:flex;gap:8px;justify-content:space-between">
-        <div>
-          <button x-show="editingAcct.id" class="btn btn-danger" @click="deleteAcct(editingAcct.id)">삭제</button>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-outline" @click="showAcctModal=false">취소</button>
-          <button class="btn btn-primary" @click="saveAcct()">저장</button>
-        </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-outline" @click="showAcctModal=false">취소</button>
+        <button class="btn btn-primary" @click="saveAcct()">저장</button>
       </div>
     </div>
   </div>

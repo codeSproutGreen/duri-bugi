@@ -235,6 +235,8 @@ label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; font-size: 14px;
 }
+.dnd-marked-delete { opacity: 0.4; }
+.dnd-marked-delete .dnd-row span:not(.dnd-handle) { text-decoration: line-through; }
 .dnd-handle {
   cursor: grab; color: var(--text-muted); font-size: 18px;
   user-select: none; line-height: 1;
