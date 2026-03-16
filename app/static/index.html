@@ -806,16 +806,34 @@
         <div class="form-group">
           <label>차변 (지출 항목)</label>
           <select x-model.number="editDebitAcct">
-            <template x-for="a in selectableAccounts()" :key="a.id">
-              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            <template x-for="t in groupedSelectableAccounts()" :key="t.type">
+              <optgroup :label="t.label">
+                <template x-for="a in t.ungrouped" :key="a.id">
+                  <option :value="a.id" x-text="a.code+' '+a.name"></option>
+                </template>
+                <template x-for="g in t.groups" :key="g.label">
+                  <template x-for="a in g.accounts" :key="a.id">
+                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'"></option>
+                  </template>
+                </template>
+              </optgroup>
             </template>
           </select>
         </div>
         <div class="form-group">
           <label>대변 (결제 수단)</label>
           <select x-model.number="editCreditAcct">
-            <template x-for="a in selectableAccounts()" :key="a.id">
-              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            <template x-for="t in groupedSelectableAccounts()" :key="t.type">
+              <optgroup :label="t.label">
+                <template x-for="a in t.ungrouped" :key="a.id">
+                  <option :value="a.id" x-text="a.code+' '+a.name"></option>
+                </template>
+                <template x-for="g in t.groups" :key="g.label">
+                  <template x-for="a in g.accounts" :key="a.id">
+                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'"></option>
+                  </template>
+                </template>
+              </optgroup>
             </template>
           </select>
         </div>

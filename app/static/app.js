@@ -280,6 +280,30 @@ function app() {
       return this.allAccounts.filter(a => !a.is_group);
     },
 
+    groupedSelectableAccounts() {
+      const typeOrder = ['asset', 'liability', 'expense', 'income', 'equity'];
+      const result = [];
+      for (const type of typeOrder) {
+        const accts = this.allAccounts.filter(a => a.type === type && !a.is_group);
+        if (!accts.length) continue;
+        // Separate grouped and ungrouped
+        const ungrouped = accts.filter(a => !a.parent_id);
+        const grouped = accts.filter(a => a.parent_id);
+        // Collect groups
+        const groupMap = {};
+        for (const a of grouped) {
+          if (!groupMap[a.parent_id]) {
+            const parent = this.allAccounts.find(p => p.id === a.parent_id);
+            groupMap[a.parent_id] = { label: parent ? parent.name : '기타', accounts: [], sort: parent ? parent.sort_order : 99999 };
+          }
+          groupMap[a.parent_id].accounts.push(a);
+        }
+        const groups = Object.values(groupMap).sort((a, b) => a.sort - b.sort);
+        result.push({ type, label: this.accountTypeLabel(type), ungrouped, groups });
+      }
+      return result;
+    },
+
     quickAccounts(type) {
       if (type === 'expense') {
         return this.allAccounts.filter(a => a.type === 'expense' && !a.is_group && !a.parent_id).slice(0, 8);
