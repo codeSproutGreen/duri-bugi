@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are a Korean financial message parser. Extract transaction details from Korean bank/card SMS and push notifications.
 
-Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
+Return ONLY valid JSON (no markdown, no explanation) with this EXACT structure — ALL fields are REQUIRED:
 {
   "transaction_type": "card_payment" | "bank_transfer" | "deposit" | "withdrawal" | "unknown",
   "amount": <integer, KRW, 0 if unknown>,
@@ -18,19 +18,23 @@ Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
   "card_or_account": "<카드/계좌 name extracted from message>",
   "date": "<YYYY-MM-DD or null if not determinable>",
   "memo": "<any extra info like 일시불, 할부, 잔액 etc.>",
-  "suggested_debit_type": "asset" | "expense",
-  "suggested_credit_type": "asset" | "liability" | "income",
+  "suggested_debit_code": "<REQUIRED: pick from [Available Accounts] list>",
+  "suggested_credit_code": "<REQUIRED: pick from [Available Accounts] list>",
   "confidence": <0.0 to 1.0>
 }
 
-Rules:
-- card_payment: debit=expense(비용), credit=liability(카드미결제)
-- deposit/income: debit=asset(은행계좌), credit=income(수입)
-- withdrawal: debit=expense(비용), credit=asset(은행계좌)
-- bank_transfer: debit=asset(받는계좌), credit=asset(보내는계좌)
-- Amount must be integer (Korean Won has no decimals)
-- For date, infer the year as current year if only MM/DD given
-- If you cannot parse the message, set transaction_type to "unknown" and confidence to 0
+CRITICAL RULES for suggested_debit_code and suggested_credit_code:
+- You MUST pick account codes from the [Available Accounts] list provided below
+- card_payment: debit=비용 계정 code (e.g. 5001), credit=해당 카드 계정 code (match card name from message to account name)
+- deposit/income: debit=해당 은행 계정 code, credit=수입 계정 code
+- withdrawal: debit=비용 계정 code, credit=해당 은행 계정 code
+- bank_transfer: debit=받는 계정 code, credit=보내는 계정 code
+- Match "신한카드" in message → find account named "신한카드" → use its code
+- Match "KB국민카드" → find "KB국민카드" → use its code
+- If [Past Transactions] show same merchant mapped to specific accounts, use the same accounts
+- Amount must be integer (Korean Won)
+- For date, infer year as current year if only MM/DD given
+- If cannot parse, set transaction_type to "unknown"
 """
 
 
@@ -48,7 +52,8 @@ def _strip_code_fences(text: str) -> str:
     return text
 
 
-def parse_message(source_name: str, content: str) -> dict | None:
+def parse_message(source_name: str, content: str,
+                   accounts_context: str = "", history_context: str = "") -> dict | None:
     """Parse a financial message using Gemini API. Returns parsed dict or None."""
     if not settings.gemini_api_key:
         log.warning("Gemini API key not configured")
@@ -59,6 +64,11 @@ def parse_message(source_name: str, content: str) -> dict | None:
         today = datetime.now().strftime("%Y-%m-%d")
         user_msg = f"today: {today}\nsource_name: {source_name}\nmessage: {content}"
 
+        if accounts_context:
+            user_msg += f"\n\n[Available Accounts]\n{accounts_context}"
+        if history_context:
+            user_msg += f"\n\n[Past Transactions - use these to match merchants to accounts]\n{history_context}"
+
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=f"{SYSTEM_PROMPT}\n\n{user_msg}",
@@ -66,8 +76,9 @@ def parse_message(source_name: str, content: str) -> dict | None:
 
         text = _strip_code_fences(response.text)
         parsed = json.loads(text)
-        log.info("AI parsed: type=%s amount=%s merchant=%s",
-                 parsed.get("transaction_type"), parsed.get("amount"), parsed.get("merchant"))
+        log.info("AI parsed: type=%s amount=%s merchant=%s debit=%s credit=%s",
+                 parsed.get("transaction_type"), parsed.get("amount"), parsed.get("merchant"),
+                 parsed.get("suggested_debit_code"), parsed.get("suggested_credit_code"))
         return parsed
     except json.JSONDecodeError as e:
         log.error("AI response not valid JSON: %s", e)

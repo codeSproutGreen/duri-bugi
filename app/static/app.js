@@ -282,7 +282,8 @@ function app() {
       this.loadDashboard();
     },
 
-    editExistingEntry(e) {
+    async editExistingEntry(e) {
+      await this.loadAllAccounts();
       this.editingEntry = { ...e };
       this.editAmount = e.lines.reduce((s, l) => s + l.debit, 0);
       this.editDebitAcct = e.lines.find(l => l.debit > 0)?.account_id || 0;
@@ -448,9 +449,7 @@ function app() {
         collectOrder(evt.from, oldParentId);
       }
 
-      console.log('reorder data:', JSON.stringify(reorderData));
-      const reorderRes = await this.put('/accounts/reorder', reorderData);
-      console.log('reorder response:', JSON.stringify(reorderRes));
+      await this.put('/accounts/reorder', reorderData);
 
       // Reload to get fresh depth/children data
       await this.loadAccounts();

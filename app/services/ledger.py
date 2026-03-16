@@ -21,6 +21,50 @@ TYPE_DEFAULTS = {
 }
 
 
+def _find_account_by_code(db: Session, code: str | None) -> Account | None:
+    """Find an active, non-group account by code."""
+    if not code:
+        return None
+    return db.query(Account).filter(
+        Account.code == code, Account.is_active == 1,
+        Account.is_group == 0, Account.is_deleted == 0
+    ).first()
+
+
+def _build_accounts_context(db: Session) -> str:
+    """Build a text list of available accounts for AI context."""
+    accounts = db.query(Account).filter(
+        Account.is_active == 1, Account.is_group == 0, Account.is_deleted == 0
+    ).order_by(Account.type, Account.code).all()
+
+    lines = []
+    for a in accounts:
+        type_label = {"asset": "자산", "liability": "부채", "equity": "자본",
+                      "income": "수입", "expense": "비용"}.get(a.type, a.type)
+        lines.append(f"{a.code} {a.name} ({type_label})")
+    return "\n".join(lines)
+
+
+def _build_history_context(db: Session, limit: int = 30) -> str:
+    """Build recent confirmed transaction history for AI context."""
+    recent = db.query(JournalEntry).filter(
+        JournalEntry.is_confirmed == 1,
+        JournalEntry.source.in_(["webhook", "web"]),
+    ).order_by(JournalEntry.id.desc()).limit(limit).all()
+
+    lines = []
+    for entry in recent:
+        debit_line = next((l for l in entry.lines if l.debit > 0), None)
+        credit_line = next((l for l in entry.lines if l.credit > 0), None)
+        if debit_line and credit_line:
+            lines.append(
+                f"{entry.description} → "
+                f"debit:{debit_line.account.code}({debit_line.account.name}) "
+                f"credit:{credit_line.account.code}({credit_line.account.name})"
+            )
+    return "\n".join(lines)
+
+
 def find_account_by_type(db: Session, acct_type: str) -> Account | None:
     """Find the first active account of the given type, preferring default codes."""
     default_code = TYPE_DEFAULTS.get(acct_type)
@@ -85,8 +129,14 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
         db.commit()
         return entry
 
-    # 2. Call AI parser
-    parsed = parse_message(msg.source_name, msg.content)
+    # 2. Build context for AI
+    accounts_context = _build_accounts_context(db)
+    history_context = _build_history_context(db)
+
+    # 3. Call AI parser with context
+    parsed = parse_message(msg.source_name, msg.content,
+                           accounts_context=accounts_context,
+                           history_context=history_context)
     if not parsed:
         msg.status = "failed"
         msg.ai_result = json.dumps({"error": "AI parse returned None"}, ensure_ascii=False)
@@ -107,11 +157,15 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
         db.commit()
         return None
 
-    # Find accounts
-    debit_type = parsed.get("suggested_debit_type", "expense")
-    credit_type = parsed.get("suggested_credit_type", "liability")
-    debit_acct = find_account_by_type(db, debit_type)
-    credit_acct = find_account_by_type(db, credit_type)
+    # Find accounts by code (AI now suggests specific codes)
+    debit_acct = _find_account_by_code(db, parsed.get("suggested_debit_code"))
+    credit_acct = _find_account_by_code(db, parsed.get("suggested_credit_code"))
+
+    # Fallback to type-based matching
+    if not debit_acct:
+        debit_acct = find_account_by_type(db, parsed.get("suggested_debit_type", "expense"))
+    if not credit_acct:
+        credit_acct = find_account_by_type(db, parsed.get("suggested_credit_type", "liability"))
 
     if not debit_acct or not credit_acct:
         msg.status = "failed"
