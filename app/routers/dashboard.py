@@ -44,6 +44,14 @@ def get_dashboard(db: Session = Depends(get_db)):
     )
 
 
+@router.get("/dashboard/pending-count")
+def get_pending_count(db: Session = Depends(get_db)):
+    count = db.query(func.count(JournalEntry.id)).filter(
+        JournalEntry.is_confirmed == 0
+    ).scalar() or 0
+    return {"count": count}
+
+
 @router.get("/dashboard/monthly", response_model=list[MonthlyRow])
 def get_monthly(
     months: int = Query(6, le=24),

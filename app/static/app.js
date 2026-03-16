@@ -73,7 +73,22 @@ function app() {
       if (!this.pinRequired || this.pinAuthenticated) {
         this.applyPeriod();
         await this.loadDashboard();
+        this._startPendingPoll();
       }
+    },
+
+    _startPendingPoll() {
+      if (this._pendingTimer) return;
+      this._pendingTimer = setInterval(async () => {
+        try {
+          const res = await this.get('/dashboard/pending-count');
+          const newCount = res.count;
+          if (newCount !== this.pendingCount) {
+            this.pendingCount = newCount;
+            if (this.page === 'review') this.loadEntries(0);
+          }
+        } catch {}
+      }, 10000);
     },
 
     pinKeyPress(key) {
@@ -230,7 +245,7 @@ function app() {
 
       this.showEditModal = false;
       if (this.page === 'review') this.loadEntries(0);
-      else if (this.page === 'transactions') this.loadEntries(null);
+      else if (this.page === 'transactions') this.loadEntries(1);
       this.loadDashboard();
     },
 
@@ -271,14 +286,14 @@ function app() {
       this.editCreditAcct = keepCredit;
       this.showAcctPicker = null;
 
-      this.loadEntries(null);
+      this.loadEntries(1);
       this.loadDashboard();
     },
 
     async deleteEntry(id) {
       if (!confirm('이 거래를 삭제하시겠습니까?')) return;
       await this.del(`/entries/${id}`);
-      this.loadEntries(null);
+      this.loadEntries(1);
       this.loadDashboard();
     },
 
