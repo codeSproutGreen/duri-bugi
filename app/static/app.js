@@ -53,6 +53,8 @@ function app() {
     // Modals & input
     showEditModal: false,
     showAcctPicker: null,
+    showDebitTip: false,
+    showCreditTip: false,
     editingEntry: {},
     editAmount: 0,
     editDebitAcct: 0,
@@ -259,6 +261,34 @@ function app() {
       }
       // payment: asset + liability (banks, cards, cash)
       return this.allAccounts.filter(a => (a.type === 'asset' || a.type === 'liability') && !a.is_group && !a.parent_id).slice(0, 8);
+    },
+
+    accountTypeLabel(type) {
+      return { asset: '자산', liability: '부채', equity: '자본', income: '수익', expense: '비용' }[type] || type;
+    },
+
+    allGroupedAccounts() {
+      const typeOrder = ['expense', 'income', 'asset', 'liability', 'equity'];
+      const result = [];
+      for (const type of typeOrder) {
+        const accts = this.allAccounts.filter(a => a.type === type && !a.is_group);
+        if (!accts.length) continue;
+        // group by parent
+        const groups = [];
+        const groupMap = {};
+        for (const a of accts) {
+          const pid = a.parent_id || 0;
+          if (!groupMap[pid]) {
+            const parent = pid ? this.allAccounts.find(p => p.id === pid) : null;
+            groupMap[pid] = { label: parent ? parent.name : null, accounts: [], sort: parent ? parent.sort_order : 99999 };
+            groups.push(groupMap[pid]);
+          }
+          groupMap[pid].accounts.push(a);
+        }
+        groups.sort((a, b) => a.sort - b.sort);
+        result.push({ type, label: this.accountTypeLabel(type), groups });
+      }
+      return result;
     },
 
     async quickSaveEntry() {

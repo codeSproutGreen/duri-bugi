@@ -226,7 +226,11 @@
               </div>
               <div class="form-group">
                 <label>금액</label>
-                <input type="number" x-model.number="editAmount" placeholder="15,000" @keydown.enter="quickSaveEntry()">
+                <input type="text" inputmode="numeric"
+                       :value="editAmount ? editAmount.toLocaleString() : ''"
+                       @input="editAmount = Number($event.target.value.replace(/,/g,'')) || 0"
+                       @keydown.enter="quickSaveEntry()"
+                       placeholder="15,000">
               </div>
             </div>
             <div class="form-group">
@@ -235,44 +239,72 @@
             </div>
             <div class="form-group">
               <label>메모</label>
-              <input type="text" x-model="editingEntry.memo" placeholder="선택사항" @keydown.enter="quickSaveEntry()">
+              <textarea x-model="editingEntry.memo" placeholder="선택사항" rows="2"
+                        @keydown.enter.prevent="if($event.ctrlKey){editingEntry.memo+='\n'}else{quickSaveEntry()}"
+                        style="resize:vertical;min-height:36px"></textarea>
             </div>
 
-            <label style="margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text)">차변 (지출 항목)</label>
-            <div class="acct-pick-grid">
-              <template x-for="a in quickAccounts('expense')" :key="a.id">
-                <button class="acct-pick" :class="editDebitAcct===a.id && 'acct-pick-active'"
-                        @click="editDebitAcct=a.id" x-text="a.name"></button>
-              </template>
-              <button class="acct-pick acct-pick-more" @click="showAcctPicker='debit'">더보기</button>
+            <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
+              <label style="font-size:13px;font-weight:600;color:var(--text)">차변</label>
+              <span class="info-tip" @click="showDebitTip=!showDebitTip" title="차변이란?">i</span>
             </div>
-            <template x-if="showAcctPicker==='debit'">
-              <div style="margin-top:4px">
-                <select x-model.number="editDebitAcct" @change="showAcctPicker=null" style="font-size:13px">
-                  <template x-for="a in selectableAccounts()" :key="a.id">
-                    <option :value="a.id" x-text="a.code+' '+a.name"></option>
-                  </template>
-                </select>
-              </div>
-            </template>
+            <div class="info-tip-box" x-show="showDebitTip" x-cloak>
+              돈이 <strong>어디로 갔는지</strong>를 선택하세요.<br>
+              예) 밥을 먹었으면 → <strong>식비</strong>, 월급을 받았으면 → <strong>통장(자산)</strong>
+            </div>
+            <div class="acct-pick-types">
+              <template x-for="t in allGroupedAccounts()" :key="t.type">
+                <div class="acct-pick-type">
+                  <span class="acct-pick-type-label" x-text="t.label"></span>
+                  <div class="acct-pick-type-body">
+                    <template x-for="g in t.groups" :key="g.label || '_ungrouped'">
+                      <div class="acct-pick-group">
+                        <template x-if="g.label">
+                          <span class="acct-pick-group-label" x-text="g.label"></span>
+                        </template>
+                        <div class="acct-pick-grid">
+                          <template x-for="a in g.accounts" :key="a.id">
+                            <button class="acct-pick" :class="editDebitAcct===a.id && 'acct-pick-active'"
+                                    @click="editDebitAcct=a.id" x-text="a.name"></button>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
 
-            <label style="margin-top:14px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text)">대변 (결제 수단)</label>
-            <div class="acct-pick-grid">
-              <template x-for="a in quickAccounts('payment')" :key="a.id">
-                <button class="acct-pick" :class="editCreditAcct===a.id && 'acct-pick-active'"
-                        @click="editCreditAcct=a.id" x-text="a.name"></button>
-              </template>
-              <button class="acct-pick acct-pick-more" @click="showAcctPicker='credit'">더보기</button>
+            <div style="margin-top:14px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+              <label style="font-size:13px;font-weight:600;color:var(--text)">대변</label>
+              <span class="info-tip" @click="showCreditTip=!showCreditTip" title="대변이란?">i</span>
             </div>
-            <template x-if="showAcctPicker==='credit'">
-              <div style="margin-top:4px">
-                <select x-model.number="editCreditAcct" @change="showAcctPicker=null" style="font-size:13px">
-                  <template x-for="a in selectableAccounts()" :key="a.id">
-                    <option :value="a.id" x-text="a.code+' '+a.name"></option>
-                  </template>
-                </select>
-              </div>
-            </template>
+            <div class="info-tip-box" x-show="showCreditTip" x-cloak>
+              돈이 <strong>어디서 나왔는지</strong>를 선택하세요.<br>
+              예) 카드로 결제했으면 → <strong>카드(부채)</strong>, 현금으로 냈으면 → <strong>현금(자산)</strong>
+            </div>
+            <div class="acct-pick-types">
+              <template x-for="t in allGroupedAccounts()" :key="t.type">
+                <div class="acct-pick-type">
+                  <span class="acct-pick-type-label" x-text="t.label"></span>
+                  <div class="acct-pick-type-body">
+                    <template x-for="g in t.groups" :key="g.label || '_ungrouped'">
+                      <div class="acct-pick-group">
+                        <template x-if="g.label">
+                          <span class="acct-pick-group-label" x-text="g.label"></span>
+                        </template>
+                        <div class="acct-pick-grid">
+                          <template x-for="a in g.accounts" :key="a.id">
+                            <button class="acct-pick" :class="editCreditAcct===a.id && 'acct-pick-active'"
+                                    @click="editCreditAcct=a.id" x-text="a.name"></button>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
 
             <button class="btn btn-primary" style="width:100%;margin-top:16px;justify-content:center"
                     @click="quickSaveEntry()">저장</button>
@@ -748,11 +780,14 @@
       </div>
       <div class="form-group">
         <label>메모</label>
-        <input type="text" x-model="editingEntry.memo">
+        <textarea x-model="editingEntry.memo" rows="2" style="resize:vertical;min-height:36px"></textarea>
       </div>
       <div class="form-group">
         <label>금액</label>
-        <input type="number" x-model.number="editAmount" placeholder="15000">
+        <input type="text" inputmode="numeric"
+               :value="editAmount ? editAmount.toLocaleString() : ''"
+               @input="editAmount = Number($event.target.value.replace(/,/g,'')) || 0"
+               placeholder="15,000">
       </div>
       <div class="form-row">
         <div class="form-group">
