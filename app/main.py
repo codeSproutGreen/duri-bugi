@@ -77,6 +77,39 @@ def migrate_db():
             conn.execute(text("ALTER TABLE journal_entries ADD COLUMN created_by TEXT NOT NULL DEFAULT ''"))
             conn.commit()
 
+        # Add is_group column
+        acct_columns = [c["name"] for c in inspect(engine).get_columns("accounts")]
+        if "is_group" not in acct_columns:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0"))
+            # Auto-detect: accounts that have children become groups
+            conn.execute(text(
+                "UPDATE accounts SET is_group = 1 "
+                "WHERE id IN (SELECT DISTINCT parent_id FROM accounts WHERE parent_id IS NOT NULL) "
+                "AND id NOT IN (SELECT DISTINCT account_id FROM journal_lines)"
+            ))
+            conn.commit()
+            logging.info("Added is_group column and auto-detected group accounts")
+
+        # Add is_deleted column to accounts
+        if "is_deleted" not in acct_columns:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"))
+            conn.commit()
+            logging.info("Added is_deleted column to accounts")
+
+        # Add sort_order column to accounts
+        acct_columns = [c["name"] for c in inspect(engine).get_columns("accounts")]
+        if "sort_order" not in acct_columns:
+            conn.execute(text("ALTER TABLE accounts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
+            # Initialize sort_order from code order
+            conn.execute(text(
+                "UPDATE accounts SET sort_order = ("
+                "  SELECT COUNT(*) FROM accounts a2 "
+                "  WHERE a2.type = accounts.type AND a2.code < accounts.code"
+                ")"
+            ))
+            conn.commit()
+            logging.info("Added sort_order column to accounts")
+
         # Migrate old account codes to new format
         row = conn.execute(text("SELECT code FROM accounts WHERE code = '1010' LIMIT 1")).fetchone()
         if row:

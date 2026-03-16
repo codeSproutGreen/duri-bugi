@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models import JournalEntry, JournalLine, RawMessage, CategoryRule, Account
 from app.schemas import EntryCreate, EntryUpdate, EntryOut, JournalLineOut
 from app.services.ledger import validate_entry_balance
+from app.services.audit import log_audit, entry_to_dict
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["transactions"])
@@ -76,6 +77,12 @@ def create_entry(data: EntryCreate, request: Request, db: Session = Depends(get_
     if not validate_entry_balance(line_dicts):
         raise HTTPException(400, "Debit and credit totals must match and be > 0")
 
+    # Block group accounts from journal entries
+    for line in data.lines:
+        acct = db.query(Account).get(line.account_id)
+        if acct and acct.is_group:
+            raise HTTPException(400, f"그룹 계정 '{acct.name}'에는 거래를 입력할 수 없습니다.")
+
     entry = JournalEntry(
         entry_date=data.entry_date,
         description=data.description,
@@ -95,16 +102,19 @@ def create_entry(data: EntryCreate, request: Request, db: Session = Depends(get_
             credit=line.credit,
         ))
 
+    log_audit(db, "journal_entries", entry.id, "create",
+             new_data=entry_to_dict(entry), user=get_current_user(request))
     db.commit()
     db.refresh(entry)
     return _entry_to_out(entry)
 
 
 @router.put("/entries/{entry_id}")
-def update_entry(entry_id: int, data: EntryUpdate, db: Session = Depends(get_db)):
+def update_entry(entry_id: int, data: EntryUpdate, request: Request, db: Session = Depends(get_db)):
     entry = db.query(JournalEntry).get(entry_id)
     if not entry:
         raise HTTPException(404, "Entry not found")
+    old = entry_to_dict(entry)
 
     if data.entry_date is not None:
         entry.entry_date = data.entry_date
@@ -118,6 +128,12 @@ def update_entry(entry_id: int, data: EntryUpdate, db: Session = Depends(get_db)
         if not validate_entry_balance(line_dicts):
             raise HTTPException(400, "Debit and credit totals must match and be > 0")
 
+        # Block group accounts
+        for line in data.lines:
+            acct = db.query(Account).get(line.account_id)
+            if acct and acct.is_group:
+                raise HTTPException(400, f"그룹 계정 '{acct.name}'에는 거래를 입력할 수 없습니다.")
+
         # Replace all lines
         db.query(JournalLine).filter(JournalLine.entry_id == entry_id).delete()
         for line in data.lines:
@@ -129,16 +145,21 @@ def update_entry(entry_id: int, data: EntryUpdate, db: Session = Depends(get_db)
             ))
 
     entry.updated_at = datetime.now().isoformat()
+    log_audit(db, "journal_entries", entry.id, "update",
+             old_data=old, new_data=entry_to_dict(entry), user=get_current_user(request))
     db.commit()
     db.refresh(entry)
     return _entry_to_out(entry)
 
 
 @router.delete("/entries/{entry_id}")
-def delete_entry(entry_id: int, db: Session = Depends(get_db)):
+def delete_entry(entry_id: int, request: Request, db: Session = Depends(get_db)):
     entry = db.query(JournalEntry).get(entry_id)
     if not entry:
         raise HTTPException(404, "Entry not found")
+
+    log_audit(db, "journal_entries", entry.id, "delete",
+             old_data=entry_to_dict(entry), user=get_current_user(request))
 
     # Reset raw message status if linked
     if entry.raw_message_id:
@@ -177,10 +198,14 @@ def confirm_entry(entry_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/entries/{entry_id}/reject")
-def reject_entry(entry_id: int, db: Session = Depends(get_db)):
+def reject_entry(entry_id: int, request: Request, db: Session = Depends(get_db)):
     entry = db.query(JournalEntry).get(entry_id)
     if not entry:
         raise HTTPException(404, "Entry not found")
+
+    log_audit(db, "journal_entries", entry.id, "delete",
+             old_data={**entry_to_dict(entry), "reason": "rejected"},
+             user=get_current_user(request))
 
     if entry.raw_message_id:
         msg = db.query(RawMessage).get(entry.raw_message_id)
@@ -190,16 +215,6 @@ def reject_entry(entry_id: int, db: Session = Depends(get_db)):
     db.delete(entry)
     db.commit()
     return {"status": "rejected"}
-
-
-@router.delete("/entries/{entry_id}")
-def delete_entry(entry_id: int, db: Session = Depends(get_db)):
-    entry = db.query(JournalEntry).get(entry_id)
-    if not entry:
-        raise HTTPException(404, "Entry not found")
-    db.delete(entry)
-    db.commit()
-    return {"status": "deleted"}
 
 
 def _upsert_category_rule(db: Session, merchant: str, lines: list[JournalLine]):

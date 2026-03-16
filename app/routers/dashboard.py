@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 
 @router.get("/dashboard", response_model=DashboardOut)
 def get_dashboard(db: Session = Depends(get_db)):
-    accounts = db.query(Account).filter(Account.is_active == 1).order_by(Account.code).all()
+    accounts = db.query(Account).filter(Account.is_active == 1, Account.is_deleted == 0).order_by(Account.code).all()
 
     totals = {"asset": 0, "liability": 0, "income": 0, "expense": 0}
     account_balances = []
@@ -23,9 +23,10 @@ def get_dashboard(db: Session = Depends(get_db)):
         balance = get_account_balance(db, acct.id)
         account_balances.append(AccountBalance(
             id=acct.id, code=acct.code, name=acct.name,
-            type=acct.type, balance=balance,
+            type=acct.type, is_group=acct.is_group, balance=balance,
         ))
-        if acct.type in totals:
+        # Only non-group accounts contribute to totals (groups have no transactions)
+        if acct.type in totals and not acct.is_group:
             totals[acct.type] += balance
 
     pending_count = db.query(func.count(JournalEntry.id)).filter(
@@ -60,6 +61,7 @@ def get_monthly(
     ).filter(
         JournalEntry.is_confirmed == 1,
         Account.type.in_(["income", "expense"]),
+        Account.is_group == 0,
     ).group_by("month", Account.type
     ).order_by(func.substr(JournalEntry.entry_date, 1, 7).desc()
     ).limit(months * 2).all()
@@ -108,6 +110,7 @@ def get_income_expense(
     all_accts = db.query(Account).filter(
         Account.type.in_(["income", "expense"]),
         Account.is_active == 1,
+        Account.is_deleted == 0,
     ).all()
 
     acct_totals = {}
@@ -126,6 +129,7 @@ def get_income_expense(
             "code": acct.code,
             "name": acct.name,
             "parent_id": acct.parent_id,
+            "is_group": acct.is_group,
             "amount": amount,
         })
 
@@ -133,23 +137,9 @@ def get_income_expense(
     for t in result:
         result[t].sort(key=lambda a: a["code"])
 
-    # Compute totals
-    def sum_roots(items):
-        root_ids = {a["id"] for a in items if not a["parent_id"]}
-        child_ids = {a["id"] for a in items if a["parent_id"]}
-        total = 0
-        for a in items:
-            if a["id"] in root_ids:
-                # root amount already includes own, add children
-                children_sum = sum(c["amount"] for c in items if c["parent_id"] == a["id"])
-                total += a["amount"] + children_sum
-            elif a["parent_id"] and a["parent_id"] not in {x["id"] for x in items}:
-                # orphan (parent in different type)
-                total += a["amount"]
-        return total
-
-    result["total_expense"] = sum_roots(result["expense"])
-    result["total_income"] = sum_roots(result["income"])
+    # Totals: sum only non-group (leaf) accounts to avoid double-counting
+    result["total_expense"] = sum(a["amount"] for a in result["expense"] if not a["is_group"])
+    result["total_income"] = sum(a["amount"] for a in result["income"] if not a["is_group"])
     result["net_income"] = result["total_income"] - result["total_expense"]
 
     return result
@@ -174,6 +164,7 @@ def get_trend(
         JournalEntry.is_confirmed == 1,
         JournalEntry.entry_date <= end,
         Account.type.in_(["asset", "liability"]),
+        Account.is_group == 0,
     ).group_by(JournalEntry.entry_date, Account.type
     ).order_by(JournalEntry.entry_date).all()
 

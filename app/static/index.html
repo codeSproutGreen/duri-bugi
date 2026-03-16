@@ -249,7 +249,7 @@
             <template x-if="showAcctPicker==='debit'">
               <div style="margin-top:4px">
                 <select x-model.number="editDebitAcct" @change="showAcctPicker=null" style="font-size:13px">
-                  <template x-for="a in allAccounts" :key="a.id">
+                  <template x-for="a in selectableAccounts()" :key="a.id">
                     <option :value="a.id" x-text="a.code+' '+a.name"></option>
                   </template>
                 </select>
@@ -267,7 +267,7 @@
             <template x-if="showAcctPicker==='credit'">
               <div style="margin-top:4px">
                 <select x-model.number="editCreditAcct" @change="showAcctPicker=null" style="font-size:13px">
-                  <template x-for="a in allAccounts" :key="a.id">
+                  <template x-for="a in selectableAccounts()" :key="a.id">
                     <option :value="a.id" x-text="a.code+' '+a.name"></option>
                   </template>
                 </select>
@@ -338,11 +338,11 @@
                     <thead><tr><th>코드</th><th>이름</th><th></th></tr></thead>
                     <tbody>
                       <template x-for="a in acctTree(t)" :key="a.id">
-                        <tr :class="a.children_count > 0 ? 'acct-group' : ''">
+                        <tr :class="a.is_group ? 'acct-group' : ''">
                           <td x-text="a.code"></td>
                           <td>
                             <span :style="'padding-left:' + (a.depth * 20) + 'px'" style="display:inline-flex;align-items:center;gap:4px">
-                              <span x-show="a.children_count > 0" style="color:var(--text-muted);font-size:11px">▾</span>
+                              <span x-show="a.is_group" style="color:var(--text-muted);font-size:11px">▾</span>
                               <span x-text="a.name"></span>
                             </span>
                           </td>
@@ -415,11 +415,11 @@
                     <thead><tr><th>코드</th><th>이름</th><th></th></tr></thead>
                     <tbody>
                       <template x-for="a in acctTree(t)" :key="a.id">
-                        <tr :class="a.children_count > 0 ? 'acct-group' : ''">
+                        <tr :class="a.is_group ? 'acct-group' : ''">
                           <td x-text="a.code"></td>
                           <td>
                             <span :style="'padding-left:' + (a.depth * 20) + 'px'" style="display:inline-flex;align-items:center;gap:4px">
-                              <span x-show="a.children_count > 0" style="color:var(--text-muted);font-size:11px">▾</span>
+                              <span x-show="a.is_group" style="color:var(--text-muted);font-size:11px">▾</span>
                               <span x-text="a.name"></span>
                             </span>
                           </td>
@@ -784,7 +784,7 @@
         <div class="form-group">
           <label>차변 (지출 항목)</label>
           <select x-model.number="editDebitAcct">
-            <template x-for="a in allAccounts" :key="a.id">
+            <template x-for="a in selectableAccounts()" :key="a.id">
               <option :value="a.id" x-text="a.code+' '+a.name"></option>
             </template>
           </select>
@@ -792,7 +792,7 @@
         <div class="form-group">
           <label>대변 (결제 수단)</label>
           <select x-model.number="editCreditAcct">
-            <template x-for="a in allAccounts" :key="a.id">
+            <template x-for="a in selectableAccounts()" :key="a.id">
               <option :value="a.id" x-text="a.code+' '+a.name"></option>
             </template>
           </select>
@@ -844,6 +844,13 @@
         <label>이름 (이모지 사용 가능)</label>
         <input type="text" x-model="editingAcct.name" placeholder="🍔 외식">
       </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" :checked="editingAcct.is_group" @change="editingAcct.is_group = $event.target.checked ? 1 : 0">
+          <span>그룹 계정</span>
+          <span style="font-weight:400;color:var(--text-muted);font-size:12px">(하위 계정의 컨테이너, 직접 거래 입력 불가)</span>
+        </label>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-outline" @click="showAcctModal=false">취소</button>
         <button class="btn btn-primary" @click="saveAcct()">저장</button>
@@ -865,7 +872,7 @@
         <div class="form-group">
           <label>차변 (지출 항목)</label>
           <select x-model.number="editingRule.debit_account_id">
-            <template x-for="a in allAccounts" :key="a.id">
+            <template x-for="a in selectableAccounts()" :key="a.id">
               <option :value="a.id" x-text="a.code+' '+a.name"></option>
             </template>
           </select>
@@ -873,7 +880,7 @@
         <div class="form-group">
           <label>대변 (결제 수단)</label>
           <select x-model.number="editingRule.credit_account_id">
-            <template x-for="a in allAccounts" :key="a.id">
+            <template x-for="a in selectableAccounts()" :key="a.id">
               <option :value="a.id" x-text="a.code+' '+a.name"></option>
             </template>
           </select>

@@ -16,7 +16,10 @@ class Account(Base):
     name = Column(Text, nullable=False)
     type = Column(Text, nullable=False)  # asset, liability, equity, income, expense
     parent_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    is_group = Column(Integer, nullable=False, default=0)
     is_active = Column(Integer, nullable=False, default=1)
+    is_deleted = Column(Integer, nullable=False, default=0)
+    sort_order = Column(Integer, nullable=False, default=0)
     created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
 
     __table_args__ = (
@@ -91,6 +94,24 @@ class JournalLine(Base):
         CheckConstraint("NOT (debit > 0 AND credit > 0)", name="ck_line_one_side"),
         Index("idx_journal_lines_entry", "entry_id"),
         Index("idx_journal_lines_account", "account_id"),
+    )
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    table_name = Column(Text, nullable=False)
+    record_id = Column(Integer, nullable=False)
+    action = Column(Text, nullable=False)  # create, update, delete
+    old_data = Column(Text, nullable=True)  # JSON
+    new_data = Column(Text, nullable=True)  # JSON
+    user = Column(Text, nullable=False, default="")
+    created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
+
+    __table_args__ = (
+        CheckConstraint("action IN ('create', 'update', 'delete')", name="ck_audit_action"),
+        Index("idx_audit_log_table_record", "table_name", "record_id"),
     )
 
 

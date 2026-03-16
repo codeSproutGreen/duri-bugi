@@ -18,6 +18,7 @@ class AccountCreate(BaseModel):
     name: str
     type: str  # asset, liability, equity, income, expense
     parent_id: int | None = None
+    is_group: int = 0
 
 
 class AccountUpdate(BaseModel):
@@ -25,7 +26,9 @@ class AccountUpdate(BaseModel):
     name: str | None = None
     type: str | None = None
     parent_id: int | None = None
+    is_group: int | None = None
     is_active: int | None = None
+    sort_order: int | None = None
 
 
 class AccountOut(BaseModel):
@@ -34,7 +37,9 @@ class AccountOut(BaseModel):
     name: str
     type: str
     parent_id: int | None
+    is_group: int = 0
     is_active: int
+    sort_order: int = 0
     balance: int = 0
     depth: int = 0
     children_count: int = 0
@@ -113,6 +118,7 @@ class AccountBalance(BaseModel):
     code: str
     name: str
     type: str
+    is_group: int = 0
     balance: int
 
 

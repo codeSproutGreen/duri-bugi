@@ -26,12 +26,14 @@ def find_account_by_type(db: Session, acct_type: str) -> Account | None:
     default_code = TYPE_DEFAULTS.get(acct_type)
     if default_code:
         acct = db.query(Account).filter(
-            Account.code == default_code, Account.is_active == 1
+            Account.code == default_code, Account.is_active == 1,
+            Account.is_group == 0, Account.is_deleted == 0
         ).first()
         if acct:
             return acct
     return db.query(Account).filter(
-        Account.type == acct_type, Account.is_active == 1
+        Account.type == acct_type, Account.is_active == 1,
+        Account.is_group == 0, Account.is_deleted == 0
     ).first()
 
 

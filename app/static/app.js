@@ -195,8 +195,8 @@ function app() {
       const today = new Date().toISOString().slice(0, 10);
       this.editingEntry = { id: 0, entry_date: today, description: '', memo: '', lines: [], is_confirmed: 0 };
       this.editAmount = 0;
-      this.editDebitAcct = this.allAccounts.find(a => a.type === 'expense')?.id || 0;
-      this.editCreditAcct = this.allAccounts.find(a => a.type === 'liability')?.id || 0;
+      this.editDebitAcct = this.allAccounts.find(a => a.type === 'expense' && !a.is_group)?.id || 0;
+      this.editCreditAcct = this.allAccounts.find(a => a.type === 'liability' && !a.is_group)?.id || 0;
       this.loadAllAccounts();
     },
 
@@ -234,12 +234,16 @@ function app() {
       this.loadDashboard();
     },
 
+    selectableAccounts() {
+      return this.allAccounts.filter(a => !a.is_group);
+    },
+
     quickAccounts(type) {
       if (type === 'expense') {
-        return this.allAccounts.filter(a => a.type === 'expense' && !a.parent_id).slice(0, 8);
+        return this.allAccounts.filter(a => a.type === 'expense' && !a.is_group && !a.parent_id).slice(0, 8);
       }
       // payment: asset + liability (banks, cards, cash)
-      return this.allAccounts.filter(a => a.type === 'asset' || a.type === 'liability').filter(a => !a.parent_id).slice(0, 8);
+      return this.allAccounts.filter(a => (a.type === 'asset' || a.type === 'liability') && !a.is_group && !a.parent_id).slice(0, 8);
     },
 
     async quickSaveEntry() {
@@ -298,7 +302,7 @@ function app() {
     },
 
     async newAcct() {
-      this.editingAcct = { code: '', name: '', type: 'asset', parent_id: null };
+      this.editingAcct = { code: '', name: '', type: 'asset', parent_id: null, is_group: 0 };
       await this.loadAllAccounts();
       await this.autoFillCode();
     },
@@ -309,16 +313,17 @@ function app() {
       if (res && res.code) this.editingAcct.code = res.code;
     },
 
+    _sortBy(list) {
+      return [...list].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.code.localeCompare(b.code));
+    },
+
     acctTree(type) {
       const list = this.acctList[type] || [];
-      // Sort: parents first (by code), then children under each parent (by code)
-      const roots = list.filter(a => !a.parent_id).sort((a, b) => a.code.localeCompare(b.code));
+      const roots = this._sortBy(list.filter(a => !a.parent_id));
       const result = [];
       const addWithChildren = (parent, depth) => {
         result.push(parent);
-        const children = list
-          .filter(a => a.parent_id === parent.id)
-          .sort((a, b) => a.code.localeCompare(b.code));
+        const children = this._sortBy(list.filter(a => a.parent_id === parent.id));
         for (const child of children) {
           addWithChildren(child, depth + 1);
         }
@@ -333,35 +338,30 @@ function app() {
     },
 
     acctRoots(type) {
-      return (this.acctList[type] || [])
-        .filter(a => !a.parent_id)
-        .sort((a, b) => a.code.localeCompare(b.code));
+      return this._sortBy((this.acctList[type] || []).filter(a => !a.parent_id));
     },
 
     acctChildren(parentId) {
       const all = Object.values(this.acctList).flat();
-      return all
-        .filter(a => a.parent_id === parentId)
-        .sort((a, b) => a.code.localeCompare(b.code));
+      return this._sortBy(all.filter(a => a.parent_id === parentId));
     },
 
     parentCandidates() {
       const type = this.editingAcct.type || 'expense';
       const list = (this.acctList[type] || []).filter(a => (a.depth || 0) < 2);
-      return list.sort((a, b) => a.code.localeCompare(b.code));
+      return this._sortBy(list);
     },
 
-    toggleAcctEditMode() {
+    async toggleAcctEditMode() {
       if (this.acctEditMode) {
         // "완료" clicked — apply pending deletes
-        this.applyAcctDeletes();
+        await this.applyAcctDeletes();
+        this.acctEditMode = false;
+        this.destroySortables();
+        await this.loadAccounts();
       } else {
         this.acctPendingDeletes = [];
-      }
-      this.acctEditMode = !this.acctEditMode;
-      if (!this.acctEditMode) {
-        this.destroySortables();
-        this.loadAccounts();
+        this.acctEditMode = true;
       }
     },
 
@@ -431,8 +431,26 @@ function app() {
         return;
       }
 
-      // Update parent via API
-      await this.put(`/accounts/${itemId}`, { parent_id: newParentId });
+      // Collect new order from DOM (only direct .dnd-item children)
+      const reorderData = [];
+      const collectOrder = (container, parentId) => {
+        const items = Array.from(container.children).filter(el => el.classList.contains('dnd-item'));
+        items.forEach((el, idx) => {
+          const id = parseInt(el.dataset.id);
+          if (!isNaN(id)) {
+            reorderData.push({ id, sort_order: idx, parent_id: parentId });
+          }
+        });
+      };
+      collectOrder(newParentEl, newParentId);
+      if (evt.from !== evt.to) {
+        const oldParentId = evt.from.dataset.parentId ? parseInt(evt.from.dataset.parentId) : null;
+        collectOrder(evt.from, oldParentId);
+      }
+
+      console.log('reorder data:', JSON.stringify(reorderData));
+      const reorderRes = await this.put('/accounts/reorder', reorderData);
+      console.log('reorder response:', JSON.stringify(reorderRes));
 
       // Reload to get fresh depth/children data
       await this.loadAccounts();
@@ -467,7 +485,11 @@ function app() {
         await this.post('/accounts', data);
       }
       this.showAcctModal = false;
-      this.loadAccounts();
+      await this.loadAccounts();
+      // Re-init sortables if in edit mode
+      if (this.acctEditMode) {
+        this.$nextTick(() => this.initAllSortables());
+      }
     },
 
     async deleteAcct(id) {
@@ -496,11 +518,11 @@ function app() {
       for (const root of roots) {
         const children = items.filter(a => a.parent_id === root.id).sort((a, b) => a.code.localeCompare(b.code));
         const childrenTotal = children.reduce((s, c) => s + c.amount, 0);
-        result.push({ ...root, _depth: 0, _isGroup: children.length > 0, _total: root.amount + childrenTotal });
+        result.push({ ...root, _depth: 0, _isGroup: root.is_group, _total: root.is_group ? childrenTotal : root.amount + childrenTotal });
         for (const child of children) {
           const grandchildren = items.filter(a => a.parent_id === child.id).sort((a, b) => a.code.localeCompare(b.code));
           const gcTotal = grandchildren.reduce((s, c) => s + c.amount, 0);
-          result.push({ ...child, _depth: 1, _isGroup: grandchildren.length > 0, _total: child.amount + gcTotal });
+          result.push({ ...child, _depth: 1, _isGroup: child.is_group, _total: child.is_group ? gcTotal : child.amount + gcTotal });
           for (const gc of grandchildren) {
             result.push({ ...gc, _depth: 2, _isGroup: false, _total: gc.amount });
           }
