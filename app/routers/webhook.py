@@ -51,7 +51,9 @@ async def receive_webhook(
     db.commit()
     db.refresh(msg)
 
-    log.info("Received %s from %s: %s", payload.type, payload.sourceName, payload.content[:50])
+    log.info("Webhook [%s] %s(%s) device=%s: %s",
+             payload.type, payload.sourceName, payload.source,
+             payload.deviceName or '-', payload.content[:80])
 
     # Process in background to respond quickly to Android
     background_tasks.add_task(_process_in_background, msg.id)
@@ -67,6 +69,7 @@ def _process_in_background(message_id: int):
         msg = db.query(RawMessage).get(message_id)
         if msg and msg.status == "pending":
             process_message(db, msg)
+            log.info("Processed msg %d → status=%s", message_id, msg.status)
     except Exception as e:
         log.error("Background process error for msg %d: %s", message_id, e)
     finally:
