@@ -365,7 +365,7 @@ function app() {
 
     parentCandidates() {
       const type = this.editingAcct.type || 'expense';
-      const list = (this.acctList[type] || []).filter(a => (a.depth || 0) < 2);
+      const list = (this.acctList[type] || []).filter(a => a.is_group && a.id !== this.editingAcct.id);
       return this._sortBy(list);
     },
 
