@@ -2,6 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -55,84 +57,22 @@ def seed_accounts():
         db.close()
 
 
-OLD_TO_NEW_CODES = {
-    "1010": "1001", "1020": "1002", "1030": "1003", "1040": "1004",
-    "2010": "2001", "2020": "2002", "2030": "2003",
-    "3010": "3001",
-    "4010": "4001", "4020": "4002", "4030": "4003",
-    "5010": "5001", "5020": "5002", "5030": "5003",
-    "5040": "5004", "5050": "5005", "5060": "5006",
-}
-
-
-def migrate_db():
-    """Add new columns to existing tables if missing."""
-    from sqlalchemy import text, inspect
-    with engine.connect() as conn:
-        columns = [c["name"] for c in inspect(engine).get_columns("journal_entries")]
-        if "source" not in columns:
-            conn.execute(text("ALTER TABLE journal_entries ADD COLUMN source TEXT NOT NULL DEFAULT 'web'"))
-            conn.commit()
-        if "created_by" not in columns:
-            conn.execute(text("ALTER TABLE journal_entries ADD COLUMN created_by TEXT NOT NULL DEFAULT ''"))
-            conn.commit()
-
-        # Add is_group column
-        acct_columns = [c["name"] for c in inspect(engine).get_columns("accounts")]
-        if "is_group" not in acct_columns:
-            conn.execute(text("ALTER TABLE accounts ADD COLUMN is_group INTEGER NOT NULL DEFAULT 0"))
-            # Auto-detect: accounts that have children become groups
-            conn.execute(text(
-                "UPDATE accounts SET is_group = 1 "
-                "WHERE id IN (SELECT DISTINCT parent_id FROM accounts WHERE parent_id IS NOT NULL) "
-                "AND id NOT IN (SELECT DISTINCT account_id FROM journal_lines)"
-            ))
-            conn.commit()
-            logging.info("Added is_group column and auto-detected group accounts")
-
-        # Add is_deleted column to accounts
-        if "is_deleted" not in acct_columns:
-            conn.execute(text("ALTER TABLE accounts ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0"))
-            conn.commit()
-            logging.info("Added is_deleted column to accounts")
-
-        # Add sort_order column to accounts
-        acct_columns = [c["name"] for c in inspect(engine).get_columns("accounts")]
-        if "sort_order" not in acct_columns:
-            conn.execute(text("ALTER TABLE accounts ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
-            # Initialize sort_order from code order
-            conn.execute(text(
-                "UPDATE accounts SET sort_order = ("
-                "  SELECT COUNT(*) FROM accounts a2 "
-                "  WHERE a2.type = accounts.type AND a2.code < accounts.code"
-                ")"
-            ))
-            conn.commit()
-            logging.info("Added sort_order column to accounts")
-
-        # Add device_name column to raw_messages
-        msg_columns = [c["name"] for c in inspect(engine).get_columns("raw_messages")]
-        if "device_name" not in msg_columns:
-            conn.execute(text("ALTER TABLE raw_messages ADD COLUMN device_name TEXT NOT NULL DEFAULT ''"))
-            conn.commit()
-            logging.info("Added device_name column to raw_messages")
-
-        # Migrate old account codes to new format
-        row = conn.execute(text("SELECT code FROM accounts WHERE code = '1010' LIMIT 1")).fetchone()
-        if row:
-            for old, new in OLD_TO_NEW_CODES.items():
-                conn.execute(text("UPDATE accounts SET code = :new WHERE code = :old"), {"old": old, "new": new})
-            # Clear all journal entries/lines (user confirmed no important data)
-            conn.execute(text("DELETE FROM journal_lines"))
-            conn.execute(text("DELETE FROM journal_entries"))
-            conn.commit()
-            logging.info("Migrated account codes to new format")
+def run_migrations():
+    """Run Alembic migrations programmatically."""
+    alembic_ini = Path(__file__).parent.parent / "alembic.ini"
+    if alembic_ini.exists():
+        alembic_cfg = Config(str(alembic_ini))
+        command.upgrade(alembic_cfg, "head")
+        logging.info("Alembic migrations applied")
+    else:
+        # Fallback: create tables directly (e.g. Docker without alembic.ini)
+        Base.metadata.create_all(bind=engine)
+        logging.info("Tables created directly (no alembic.ini found)")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    migrate_db()
+    run_migrations()
     seed_accounts()
     yield
 

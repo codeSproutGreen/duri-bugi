@@ -4,10 +4,12 @@ WORKDIR /app
 
 # Install dependencies first (cache layer)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir fastapi[standard] uvicorn[standard] sqlalchemy google-genai pydantic-settings python-multipart aiofiles
+RUN pip install --no-cache-dir fastapi[standard] uvicorn[standard] sqlalchemy alembic google-genai pydantic-settings python-multipart aiofiles
 
-# Copy app source
+# Copy app source and alembic config
 COPY app/ app/
+COPY alembic/ alembic/
+COPY alembic.ini .
 COPY seed_mock.py .
 
 EXPOSE 8000
