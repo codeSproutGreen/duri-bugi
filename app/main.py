@@ -59,11 +59,20 @@ def seed_accounts():
 
 def run_migrations():
     """Run Alembic migrations programmatically."""
+    from sqlalchemy import inspect as sa_inspect
     alembic_ini = Path(__file__).parent.parent / "alembic.ini"
     if alembic_ini.exists():
         alembic_cfg = Config(str(alembic_ini))
-        command.upgrade(alembic_cfg, "head")
-        logging.info("Alembic migrations applied")
+        # Existing DB without alembic_version? Stamp it first.
+        inspector = sa_inspect(engine)
+        has_tables = inspector.has_table("accounts")
+        has_alembic = inspector.has_table("alembic_version")
+        if has_tables and not has_alembic:
+            command.stamp(alembic_cfg, "head")
+            logging.info("Stamped existing DB to current alembic revision")
+        else:
+            command.upgrade(alembic_cfg, "head")
+            logging.info("Alembic migrations applied")
     else:
         # Fallback: create tables directly (e.g. Docker without alembic.ini)
         Base.metadata.create_all(bind=engine)
