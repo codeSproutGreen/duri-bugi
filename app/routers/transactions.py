@@ -45,6 +45,8 @@ def list_entries(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     search: str | None = Query(None),
+    debit_accounts: str | None = Query(None),
+    credit_accounts: str | None = Query(None),
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     db: Session = Depends(get_db),
@@ -58,6 +60,18 @@ def list_entries(
         q = q.filter(JournalEntry.entry_date <= date_to)
     if search:
         q = q.filter(JournalEntry.description.ilike(f"%{search}%"))
+    if debit_accounts:
+        ids = [int(x) for x in debit_accounts.split(",") if x.strip().isdigit()]
+        if ids:
+            q = q.filter(JournalEntry.lines.any(
+                (JournalLine.debit > 0) & (JournalLine.account_id.in_(ids))
+            ))
+    if credit_accounts:
+        ids = [int(x) for x in credit_accounts.split(",") if x.strip().isdigit()]
+        if ids:
+            q = q.filter(JournalEntry.lines.any(
+                (JournalLine.credit > 0) & (JournalLine.account_id.in_(ids))
+            ))
 
     entries = q.offset(offset).limit(limit).all()
     return [_entry_to_out(e) for e in entries]

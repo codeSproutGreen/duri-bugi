@@ -341,9 +341,61 @@
 
         <!-- Right: Transaction list -->
         <div class="txn-list">
-          <div style="margin-bottom:12px">
+          <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
             <input type="text" placeholder="검색..." x-model="searchQuery"
-                   @input.debounce.300ms="loadEntries(null)">
+                   @input.debounce.300ms="loadEntries()" style="flex:1">
+            <button class="btn btn-sm" :class="hasActiveFilters() ? 'btn-primary' : 'btn-outline'"
+                    @click="showFilterPanel=!showFilterPanel"
+                    style="white-space:nowrap;position:relative">
+              필터
+              <span x-show="hasActiveFilters()" style="position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;display:flex;align-items:center;justify-content:center"
+                    x-text="filterDebitIds.length+filterCreditIds.length"></span>
+            </button>
+            <button class="btn btn-sm btn-outline" x-show="hasActiveFilters()" @click="clearFilters()">초기화</button>
+          </div>
+          <div x-show="showFilterPanel" x-cloak class="card" style="padding:12px;margin-bottom:12px">
+            <div style="display:flex;gap:16px;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px">
+                <label style="font-weight:600;margin-bottom:6px">차변</label>
+                <div style="max-height:180px;overflow-y:auto">
+                  <template x-for="t in groupedSelectableAccounts()" :key="t.type">
+                    <div style="margin-bottom:4px">
+                      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin:4px 0 2px" x-text="t.label"></div>
+                      <template x-for="item in t.items" :key="item.id">
+                        <template x-if="!item.isHeader">
+                          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:1px 0"
+                                 :style="'padding-left:'+(item.depth*12)+'px'">
+                            <input type="checkbox" :checked="filterDebitIds.includes(item.id)"
+                                   @change="toggleFilterAcct('debit', item.id)">
+                            <span x-text="item.code+' '+item.name"></span>
+                          </label>
+                        </template>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+              <div style="flex:1;min-width:200px">
+                <label style="font-weight:600;margin-bottom:6px">대변</label>
+                <div style="max-height:180px;overflow-y:auto">
+                  <template x-for="t in groupedSelectableAccounts()" :key="t.type">
+                    <div style="margin-bottom:4px">
+                      <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin:4px 0 2px" x-text="t.label"></div>
+                      <template x-for="item in t.items" :key="item.id">
+                        <template x-if="!item.isHeader">
+                          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;padding:1px 0"
+                                 :style="'padding-left:'+(item.depth*12)+'px'">
+                            <input type="checkbox" :checked="filterCreditIds.includes(item.id)"
+                                   @change="toggleFilterAcct('credit', item.id)">
+                            <span x-text="item.code+' '+item.name"></span>
+                          </label>
+                        </template>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="card" style="padding:0;overflow-x:auto">
             <table>

@@ -35,6 +35,10 @@ function app() {
     // Entries
     entries: [],
     searchQuery: '',
+    filterDebitIds: [],
+    filterCreditIds: [],
+    showFilterPanel: false,
+    _lastConfirmed: null,
 
     // Accounts
     acctList: {},
@@ -232,10 +236,31 @@ function app() {
 
     // ── Entries ──
     async loadEntries(confirmed) {
+      if (confirmed !== null && confirmed !== undefined) this._lastConfirmed = confirmed;
       let url = '/entries?limit=100';
-      if (confirmed !== null && confirmed !== undefined) url += `&confirmed=${confirmed}`;
+      if (this._lastConfirmed !== null && this._lastConfirmed !== undefined) url += `&confirmed=${this._lastConfirmed}`;
       if (this.searchQuery) url += `&search=${encodeURIComponent(this.searchQuery)}`;
+      if (this.filterDebitIds.length) url += `&debit_accounts=${this.filterDebitIds.join(',')}`;
+      if (this.filterCreditIds.length) url += `&credit_accounts=${this.filterCreditIds.join(',')}`;
       this.entries = await this.get(url);
+    },
+
+    toggleFilterAcct(side, id) {
+      const arr = side === 'debit' ? this.filterDebitIds : this.filterCreditIds;
+      const idx = arr.indexOf(id);
+      if (idx >= 0) arr.splice(idx, 1); else arr.push(id);
+      this.loadEntries();
+    },
+
+    clearFilters() {
+      this.filterDebitIds = [];
+      this.filterCreditIds = [];
+      this.searchQuery = '';
+      this.loadEntries();
+    },
+
+    hasActiveFilters() {
+      return this.filterDebitIds.length > 0 || this.filterCreditIds.length > 0;
     },
 
     async confirmEntry(id) {
