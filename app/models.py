@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, Integer, Text, ForeignKey, CheckConstraint, Index, event
+    Column, Integer, Text, ForeignKey, CheckConstraint, Index, UniqueConstraint, event
 )
 from sqlalchemy.orm import relationship
 
@@ -132,3 +132,59 @@ class CategoryRule(Base):
     __table_args__ = (
         Index("idx_category_rules_merchant", "merchant_pattern"),
     )
+
+
+class StockPerson(Base):
+    __tablename__ = "stock_persons"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(Text, nullable=False, unique=True)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
+
+    accounts = relationship("StockAccount", back_populates="person", cascade="all, delete-orphan")
+
+
+class StockAccount(Base):
+    __tablename__ = "stock_accounts"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    person_id = Column(Integer, ForeignKey("stock_persons.id", ondelete="CASCADE"), nullable=False)
+    name = Column(Text, nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
+
+    person = relationship("StockPerson", back_populates="accounts")
+    holdings = relationship("StockHolding", back_populates="account", cascade="all, delete-orphan")
+
+
+class StockHolding(Base):
+    __tablename__ = "stock_holdings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    account_id = Column(Integer, ForeignKey("stock_accounts.id", ondelete="CASCADE"), nullable=False)
+    ticker = Column(Text, nullable=False)
+    name = Column(Text, nullable=False)
+    quantity = Column(Integer, nullable=False, default=0)
+    avg_price = Column(Integer, nullable=False, default=0)
+    current_price = Column(Integer, nullable=False, default=0)
+    price_updated_at = Column(Text, nullable=True)
+    created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
+
+    account = relationship("StockAccount", back_populates="holdings")
+
+    __table_args__ = (
+        UniqueConstraint("account_id", "ticker", name="uq_holding_account_ticker"),
+    )
+
+
+class RealEstate(Base):
+    __tablename__ = "real_estate"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(Text, nullable=False)
+    value = Column(Integer, nullable=False, default=0)
+    memo = Column(Text, nullable=False, default="")
+    sort_order = Column(Integer, nullable=False, default=0)
+    created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
+    updated_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())

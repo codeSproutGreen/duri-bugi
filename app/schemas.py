@@ -156,3 +156,83 @@ class RuleUpdate(BaseModel):
     merchant_pattern: str | None = None
     debit_account_id: int | None = None
     credit_account_id: int | None = None
+
+
+# ── Stock / Asset Management ──
+class StockPersonCreate(BaseModel):
+    name: str
+
+class StockPersonOut(BaseModel):
+    id: int
+    name: str
+    sort_order: int = 0
+    accounts: list["StockAccountOut"] = []
+    total_value: int = 0
+    model_config = {"from_attributes": True}
+
+class StockAccountCreate(BaseModel):
+    person_id: int
+    name: str
+
+class StockAccountOut(BaseModel):
+    id: int
+    person_id: int
+    name: str
+    holdings: list["StockHoldingOut"] = []
+    total_value: int = 0
+    model_config = {"from_attributes": True}
+
+class StockHoldingCreate(BaseModel):
+    account_id: int
+    ticker: str
+    name: str
+    quantity: int
+    avg_price: int
+
+class StockHoldingUpdate(BaseModel):
+    ticker: str | None = None
+    name: str | None = None
+    quantity: int | None = None
+    avg_price: int | None = None
+
+class StockHoldingOut(BaseModel):
+    id: int
+    account_id: int
+    ticker: str
+    name: str
+    quantity: int
+    avg_price: int
+    current_price: int = 0
+    market_value: int = 0
+    gain_loss: int = 0
+    gain_loss_pct: float = 0.0
+    price_updated_at: str | None = None
+    model_config = {"from_attributes": True}
+
+class RealEstateCreate(BaseModel):
+    name: str
+    value: int
+    memo: str = ""
+
+class RealEstateUpdate(BaseModel):
+    name: str | None = None
+    value: int | None = None
+    memo: str | None = None
+
+class RealEstateOut(BaseModel):
+    id: int
+    name: str
+    value: int
+    memo: str
+    updated_at: str
+    model_config = {"from_attributes": True}
+
+class AssetSummaryOut(BaseModel):
+    cash_bank: int = 0
+    total_liability: int = 0
+    stocks_total: int = 0
+    stocks_by_person: list[StockPersonOut] = []
+    realestate_total: int = 0
+    realestate_items: list[RealEstateOut] = []
+    total_assets: int = 0
+    net_worth: int = 0
