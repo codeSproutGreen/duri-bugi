@@ -85,8 +85,18 @@ def run_migrations():
         logging.info("Tables created directly (no alembic.ini found)")
 
 
+def _setup_logging():
+    """Wire app loggers to uvicorn's handlers so they show in docker logs."""
+    uv_error = logging.getLogger("uvicorn.error")
+    if uv_error.handlers:
+        app_logger = logging.getLogger("app")
+        app_logger.setLevel(logging.INFO)
+        app_logger.handlers = uv_error.handlers
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _setup_logging()
     run_migrations()
     seed_accounts()
     yield
