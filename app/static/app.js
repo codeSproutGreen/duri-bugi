@@ -58,6 +58,21 @@ function app() {
     _chart: null,
     incExp: { expense: [], income: [], total_expense: 0, total_income: 0, net_income: 0 },
 
+    // Assets
+    assetTab: 'summary',
+    assetSummary: { cash_bank: 0, total_liability: 0, stocks_total: 0, stocks_by_person: [], realestate_total: 0, realestate_items: [], total_assets: 0, net_worth: 0 },
+    stockPersons: [],
+    realEstateItems: [],
+    showStockPersonModal: false,
+    showStockAccountModal: false,
+    showStockHoldingModal: false,
+    showRealEstateModal: false,
+    editingStockPerson: {},
+    editingStockAccount: {},
+    editingStockHolding: {},
+    editingRealEstate: {},
+    priceRefreshing: false,
+
     // Messages
     messages: [],
     msgFilter: null,
@@ -813,9 +828,9 @@ function app() {
     },
 
     // ── Rules ──
-    editRule(r) {
+    async editRule(r) {
       this.editingRule = { ...r };
-      this.loadAllAccounts();
+      await this.loadAllAccounts();
       this.showRuleModal = true;
     },
 
@@ -834,6 +849,96 @@ function app() {
       if (!confirm('이 규칙을 삭제하시겠습니까?')) return;
       await this.del(`/rules/${id}`);
       this.loadSettings();
+    },
+
+    // ── Assets ──
+    async loadAssetSummary() {
+      this.assetSummary = await this.get('/assets/summary');
+    },
+
+    async loadStockPersons() {
+      this.stockPersons = await this.get('/assets/stock/persons');
+    },
+
+    async loadRealEstate() {
+      this.realEstateItems = await this.get('/assets/realestate');
+    },
+
+    async saveStockPerson() {
+      if (!this.editingStockPerson.name) return alert('이름을 입력하세요');
+      if (this.editingStockPerson.id) {
+        await this.put(`/assets/stock/persons/${this.editingStockPerson.id}`, { name: this.editingStockPerson.name });
+      } else {
+        await this.post('/assets/stock/persons', { name: this.editingStockPerson.name });
+      }
+      this.showStockPersonModal = false;
+      this.loadStockPersons();
+    },
+
+    async deleteStockPerson(id) {
+      await this.del(`/assets/stock/persons/${id}`);
+      this.loadStockPersons();
+    },
+
+    async saveStockAccount() {
+      if (!this.editingStockAccount.name) return alert('증권사명을 입력하세요');
+      if (this.editingStockAccount.id) {
+        await this.put(`/assets/stock/accounts/${this.editingStockAccount.id}`, { person_id: this.editingStockAccount.person_id, name: this.editingStockAccount.name });
+      } else {
+        await this.post('/assets/stock/accounts', { person_id: this.editingStockAccount.person_id, name: this.editingStockAccount.name });
+      }
+      this.showStockAccountModal = false;
+      this.loadStockPersons();
+    },
+
+    async deleteStockAccount(id) {
+      await this.del(`/assets/stock/accounts/${id}`);
+      this.loadStockPersons();
+    },
+
+    async saveStockHolding() {
+      const h = this.editingStockHolding;
+      if (!h.ticker || !h.name) return alert('종목코드와 이름을 입력하세요');
+      if (h.id) {
+        await this.put(`/assets/stock/holdings/${h.id}`, { ticker: h.ticker, name: h.name, quantity: h.quantity, avg_price: h.avg_price });
+      } else {
+        await this.post('/assets/stock/holdings', { account_id: h.account_id, ticker: h.ticker, name: h.name, quantity: h.quantity, avg_price: h.avg_price });
+      }
+      this.showStockHoldingModal = false;
+      this.loadStockPersons();
+    },
+
+    async deleteStockHolding(id) {
+      await this.del(`/assets/stock/holdings/${id}`);
+      this.loadStockPersons();
+    },
+
+    async refreshStockPrices() {
+      this.priceRefreshing = true;
+      try {
+        await this.post('/assets/stock/refresh-prices', {});
+        await this.loadStockPersons();
+        if (this.assetTab === 'summary') await this.loadAssetSummary();
+      } finally {
+        this.priceRefreshing = false;
+      }
+    },
+
+    async saveRealEstate() {
+      const r = this.editingRealEstate;
+      if (!r.name) return alert('이름을 입력하세요');
+      if (r.id) {
+        await this.put(`/assets/realestate/${r.id}`, { name: r.name, value: r.value, memo: r.memo });
+      } else {
+        await this.post('/assets/realestate', { name: r.name, value: r.value, memo: r.memo });
+      }
+      this.showRealEstateModal = false;
+      this.loadRealEstate();
+    },
+
+    async deleteRealEstate(id) {
+      await this.del(`/assets/realestate/${id}`);
+      this.loadRealEstate();
     },
 
     // ── Messages ──

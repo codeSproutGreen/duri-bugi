@@ -86,6 +86,11 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         <span class="nav-label">리포트</span>
       </a>
+      <a href="#" :class="{ active: page==='assets' }" @click.prevent="page='assets'; loadAssetSummary()"
+         :title="sidebarOpen ? '' : '자산관리'">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span class="nav-label">자산관리</span>
+      </a>
     </nav>
     <div class="sidebar-bottom">
       <a href="#" :class="{ active: page==='messages' }" @click.prevent="page='messages'; loadMessages()"
@@ -695,6 +700,219 @@
     </div>
   </template>
 
+  <!-- Assets -->
+  <template x-if="page==='assets'">
+    <div>
+      <h1>자산관리</h1>
+      <div class="tabs" style="margin-bottom:12px">
+        <div class="tab" :class="assetTab==='summary' && 'active'" @click="assetTab='summary'">종합</div>
+        <div class="tab" :class="assetTab==='stocks' && 'active'" @click="assetTab='stocks'; loadStockPersons()">주식</div>
+        <div class="tab" :class="assetTab==='realestate' && 'active'" @click="assetTab='realestate'; loadRealEstate()">부동산</div>
+      </div>
+
+      <!-- Tab: 종합 -->
+      <template x-if="assetTab==='summary'">
+        <div>
+          <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+            <div class="stat-card"><div class="stat-label">현금/예금</div><div class="stat-value" x-text="fmt(assetSummary.cash_bank)"></div></div>
+            <div class="stat-card"><div class="stat-label">주식</div><div class="stat-value" x-text="fmt(assetSummary.stocks_total)"></div></div>
+            <div class="stat-card"><div class="stat-label">부동산</div><div class="stat-value" x-text="fmt(assetSummary.realestate_total)"></div></div>
+            <div class="stat-card"><div class="stat-label">순자산</div><div class="stat-value" x-text="fmt(assetSummary.net_worth)"></div></div>
+          </div>
+          <div class="stat-grid" style="grid-template-columns:repeat(2,1fr); margin-top:8px">
+            <div class="stat-card"><div class="stat-label">총 자산</div><div class="stat-value" x-text="fmt(assetSummary.total_assets)"></div></div>
+            <div class="stat-card"><div class="stat-label">총 부채</div><div class="stat-value amount-expense" x-text="fmt(assetSummary.total_liability)"></div></div>
+          </div>
+
+          <!-- Per-person stock summary -->
+          <template x-for="person in assetSummary.stocks_by_person || []" :key="person.id">
+            <div class="card" style="margin-top:12px">
+              <h3 style="margin:0 0 8px" x-text="person.name + ' 주식 ' + fmt(person.total_value)"></h3>
+              <template x-for="acct in person.accounts" :key="acct.id">
+                <div style="margin-bottom:8px">
+                  <div style="font-weight:500; margin-bottom:4px" x-text="acct.name + ' (' + fmt(acct.total_value) + ')'"></div>
+                  <template x-for="h in acct.holdings" :key="h.id">
+                    <div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.9em">
+                      <span x-text="h.name"></span>
+                      <span>
+                        <span x-text="fmt(h.market_value)"></span>
+                        <span style="margin-left:6px" :class="h.gain_loss >= 0 ? 'amount-income' : 'amount-expense'"
+                              x-text="(h.gain_loss>=0?'+':'') + fmt(h.gain_loss) + ' (' + h.gain_loss_pct + '%)'"></span>
+                      </span>
+                    </div>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- Real estate summary -->
+          <template x-if="(assetSummary.realestate_items || []).length > 0">
+            <div class="card" style="margin-top:12px">
+              <h3 style="margin:0 0 8px">부동산</h3>
+              <template x-for="r in assetSummary.realestate_items" :key="r.id">
+                <div style="display:flex;justify-content:space-between;padding:2px 0">
+                  <span x-text="r.name"></span>
+                  <span x-text="fmt(r.value)"></span>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- Tab: 주식 -->
+      <template x-if="assetTab==='stocks'">
+        <div>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <button class="btn btn-primary" @click="editingStockPerson={id:0,name:''}; showStockPersonModal=true">+ 명의자</button>
+            <button class="btn btn-outline" @click="refreshStockPrices()" :disabled="priceRefreshing">
+              <span x-show="!priceRefreshing">시세 새로고침</span>
+              <span x-show="priceRefreshing">갱신 중...</span>
+            </button>
+          </div>
+
+          <template x-for="person in stockPersons" :key="person.id">
+            <div class="card" style="margin-bottom:12px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <h3 style="margin:0" x-text="person.name + ' — ' + fmt(person.total_value)"></h3>
+                <div style="display:flex;gap:4px">
+                  <button class="btn btn-sm btn-outline" @click="editingStockAccount={id:0,person_id:person.id,name:''}; showStockAccountModal=true">+ 계좌</button>
+                  <button class="btn btn-sm btn-outline" @click="editingStockPerson={...person}; showStockPersonModal=true">수정</button>
+                  <button class="btn btn-sm btn-danger" @click="if(confirm(person.name+' 삭제?')) deleteStockPerson(person.id)">삭제</button>
+                </div>
+              </div>
+              <template x-for="acct in person.accounts" :key="acct.id">
+                <div style="margin-bottom:12px; padding:8px; border-radius:8px; background:var(--accent-bg,rgba(255,255,255,0.03))">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <strong x-text="acct.name + ' (' + fmt(acct.total_value) + ')'"></strong>
+                    <div style="display:flex;gap:4px">
+                      <button class="btn btn-sm btn-outline" @click="editingStockHolding={id:0,account_id:acct.id,ticker:'',name:'',quantity:0,avg_price:0}; showStockHoldingModal=true">+ 종목</button>
+                      <button class="btn btn-sm btn-outline" @click="editingStockAccount={...acct, person_id:person.id}; showStockAccountModal=true">수정</button>
+                      <button class="btn btn-sm btn-danger" @click="if(confirm(acct.name+' 삭제?')) deleteStockAccount(acct.id)">삭제</button>
+                    </div>
+                  </div>
+                  <table x-show="acct.holdings.length">
+                    <thead><tr><th>종목</th><th class="amount">수량</th><th class="amount">평단가</th><th class="amount">현재가</th><th class="amount">평가액</th><th class="amount">손익</th><th></th></tr></thead>
+                    <tbody>
+                      <template x-for="h in acct.holdings" :key="h.id">
+                        <tr>
+                          <td><span x-text="h.name"></span><br><small style="opacity:0.6" x-text="h.ticker"></small></td>
+                          <td class="amount" x-text="h.quantity.toLocaleString()"></td>
+                          <td class="amount" x-text="fmt(h.avg_price)"></td>
+                          <td class="amount" x-text="fmt(h.current_price)"></td>
+                          <td class="amount" x-text="fmt(h.market_value)"></td>
+                          <td class="amount" :class="h.gain_loss >= 0 ? 'amount-income' : 'amount-expense'"
+                              x-text="(h.gain_loss>=0?'+':'') + fmt(h.gain_loss) + ' (' + h.gain_loss_pct + '%)'"></td>
+                          <td style="white-space:nowrap">
+                            <button class="btn btn-sm btn-outline" @click="editingStockHolding={...h}; showStockHoldingModal=true">수정</button>
+                            <button class="btn btn-sm btn-danger" @click="if(confirm(h.name+' 삭제?')) deleteStockHolding(h.id)">삭제</button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- Tab: 부동산 -->
+      <template x-if="assetTab==='realestate'">
+        <div>
+          <button class="btn btn-primary" style="margin-bottom:12px" @click="editingRealEstate={id:0,name:'',value:0,memo:''}; showRealEstateModal=true">+ 부동산 추가</button>
+          <div class="card" style="padding:0">
+            <table>
+              <thead><tr><th>이름</th><th class="amount">평가액</th><th>메모</th><th></th></tr></thead>
+              <tbody>
+                <template x-for="r in realEstateItems" :key="r.id">
+                  <tr>
+                    <td x-text="r.name"></td>
+                    <td class="amount" x-text="fmt(r.value)"></td>
+                    <td x-text="r.memo"></td>
+                    <td style="white-space:nowrap">
+                      <button class="btn btn-sm btn-outline" @click="editingRealEstate={...r}; showRealEstateModal=true">수정</button>
+                      <button class="btn btn-sm btn-danger" @click="if(confirm(r.name+' 삭제?')) deleteRealEstate(r.id)">삭제</button>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
+    </div>
+  </template>
+
+  <!-- Stock Person Modal -->
+  <template x-if="showStockPersonModal">
+    <div class="modal-bg" @click.self="showStockPersonModal=false">
+      <div class="modal" @keydown.enter.prevent="saveStockPerson()">
+        <h2 x-text="editingStockPerson.id ? '명의자 수정' : '명의자 추가'"></h2>
+        <div class="form-group"><label>이름</label><input type="text" x-model="editingStockPerson.name" placeholder="예: 남편"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" @click="showStockPersonModal=false">취소</button>
+          <button class="btn btn-primary" @click="saveStockPerson()">저장</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Stock Account Modal -->
+  <template x-if="showStockAccountModal">
+    <div class="modal-bg" @click.self="showStockAccountModal=false">
+      <div class="modal" @keydown.enter.prevent="saveStockAccount()">
+        <h2 x-text="editingStockAccount.id ? '계좌 수정' : '계좌 추가'"></h2>
+        <div class="form-group"><label>증권사명</label><input type="text" x-model="editingStockAccount.name" placeholder="예: 키움증권"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" @click="showStockAccountModal=false">취소</button>
+          <button class="btn btn-primary" @click="saveStockAccount()">저장</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Stock Holding Modal -->
+  <template x-if="showStockHoldingModal">
+    <div class="modal-bg" @click.self="showStockHoldingModal=false">
+      <div class="modal" @keydown.enter.prevent="saveStockHolding()">
+        <h2 x-text="editingStockHolding.id ? '종목 수정' : '종목 추가'"></h2>
+        <div class="form-group"><label>종목코드</label><input type="text" x-model="editingStockHolding.ticker" placeholder="005930"></div>
+        <div class="form-group"><label>종목명</label><input type="text" x-model="editingStockHolding.name" placeholder="삼성전자"></div>
+        <div class="form-group"><label>수량</label><input type="text" inputmode="numeric"
+            :value="editingStockHolding.quantity ? editingStockHolding.quantity.toLocaleString() : ''"
+            @input="editingStockHolding.quantity = Number($event.target.value.replace(/,/g,'')) || 0"></div>
+        <div class="form-group"><label>평균 매입가</label><input type="text" inputmode="numeric"
+            :value="editingStockHolding.avg_price ? editingStockHolding.avg_price.toLocaleString() : ''"
+            @input="editingStockHolding.avg_price = Number($event.target.value.replace(/,/g,'')) || 0"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" @click="showStockHoldingModal=false">취소</button>
+          <button class="btn btn-primary" @click="saveStockHolding()">저장</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Real Estate Modal -->
+  <template x-if="showRealEstateModal">
+    <div class="modal-bg" @click.self="showRealEstateModal=false">
+      <div class="modal" @keydown.enter.prevent="saveRealEstate()">
+        <h2 x-text="editingRealEstate.id ? '부동산 수정' : '부동산 추가'"></h2>
+        <div class="form-group"><label>이름</label><input type="text" x-model="editingRealEstate.name" placeholder="서울 아파트"></div>
+        <div class="form-group"><label>평가액</label><input type="text" inputmode="numeric"
+            :value="editingRealEstate.value ? editingRealEstate.value.toLocaleString() : ''"
+            @input="editingRealEstate.value = Number($event.target.value.replace(/,/g,'')) || 0"></div>
+        <div class="form-group"><label>메모</label><textarea x-model="editingRealEstate.memo" rows="2" style="resize:vertical;min-height:36px"></textarea></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" @click="showRealEstateModal=false">취소</button>
+          <button class="btn btn-primary" @click="saveRealEstate()">저장</button>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <!-- Messages -->
   <template x-if="page==='messages'">
     <div>
@@ -910,16 +1128,34 @@
         <div class="form-group">
           <label>차변 (지출 항목)</label>
           <select x-model.number="editingRule.debit_account_id">
-            <template x-for="a in selectableAccounts()" :key="a.id">
-              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            <template x-for="t in groupedSelectableAccounts()" :key="t.type">
+              <optgroup :label="t.label">
+                <template x-for="a in t.ungrouped" :key="a.id">
+                  <option :value="a.id" x-text="a.code+' '+a.name" :selected="a.id===editingRule.debit_account_id"></option>
+                </template>
+                <template x-for="g in t.groups" :key="g.label">
+                  <template x-for="a in g.accounts" :key="a.id">
+                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'" :selected="a.id===editingRule.debit_account_id"></option>
+                  </template>
+                </template>
+              </optgroup>
             </template>
           </select>
         </div>
         <div class="form-group">
           <label>대변 (결제 수단)</label>
           <select x-model.number="editingRule.credit_account_id">
-            <template x-for="a in selectableAccounts()" :key="a.id">
-              <option :value="a.id" x-text="a.code+' '+a.name"></option>
+            <template x-for="t in groupedSelectableAccounts()" :key="t.type">
+              <optgroup :label="t.label">
+                <template x-for="a in t.ungrouped" :key="a.id">
+                  <option :value="a.id" x-text="a.code+' '+a.name" :selected="a.id===editingRule.credit_account_id"></option>
+                </template>
+                <template x-for="g in t.groups" :key="g.label">
+                  <template x-for="a in g.accounts" :key="a.id">
+                    <option :value="a.id" x-text="'  '+a.code+' '+a.name+' ('+g.label+')'" :selected="a.id===editingRule.credit_account_id"></option>
+                  </template>
+                </template>
+              </optgroup>
             </template>
           </select>
         </div>
