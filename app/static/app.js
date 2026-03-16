@@ -296,9 +296,16 @@ function app() {
       await this.loadAllAccounts();
     },
 
-    newAcct() {
-      this.editingAcct = { code: '', name: '', type: 'expense', parent_id: null };
-      this.loadAllAccounts();
+    async newAcct() {
+      this.editingAcct = { code: '', name: '', type: 'asset', parent_id: null };
+      await this.loadAllAccounts();
+      await this.autoFillCode();
+    },
+
+    async autoFillCode() {
+      if (this.editingAcct.id) return; // don't overwrite existing account codes
+      const res = await this.get(`/accounts/next-code?type=${this.editingAcct.type}`);
+      if (res && res.code) this.editingAcct.code = res.code;
     },
 
     acctTree(type) {
@@ -421,13 +428,28 @@ function app() {
     },
 
     async saveAcct() {
-      if (!this.editingAcct.code || !this.editingAcct.name) return alert('코드와 이름을 입력하세요');
+      if (!this.editingAcct.name) return alert('이름을 입력하세요');
+      // Check duplicate name
+      const allAccts = Object.values(this.acctList).flat();
+      const dup = allAccts.find(a => a.name === this.editingAcct.name && a.id !== this.editingAcct.id);
+      if (dup) return alert(`"${this.editingAcct.name}" 이름의 계정이 이미 존재합니다.`);
       const data = { ...this.editingAcct };
       if (data.parent_id === '' || data.parent_id === 'null') data.parent_id = null;
       if (this.editingAcct.id) {
         await this.put(`/accounts/${this.editingAcct.id}`, data);
       } else {
         await this.post('/accounts', data);
+      }
+      this.showAcctModal = false;
+      this.loadAccounts();
+    },
+
+    async deleteAcct(id) {
+      if (!confirm('이 계정을 삭제하시겠습니까?')) return;
+      const res = await fetch(`${API}/accounts/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return alert(err.detail || '삭제 실패');
       }
       this.showAcctModal = false;
       this.loadAccounts();

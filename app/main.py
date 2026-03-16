@@ -19,27 +19,27 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 
 SEED_ACCOUNTS = [
     # 자산
-    ("1010", "신한은행", "asset"),
-    ("1020", "카카오뱅크", "asset"),
-    ("1030", "토스", "asset"),
-    ("1040", "현금", "asset"),
+    ("1001", "신한은행", "asset"),
+    ("1002", "카카오뱅크", "asset"),
+    ("1003", "토스", "asset"),
+    ("1004", "현금", "asset"),
     # 부채
-    ("2010", "KB국민카드", "liability"),
-    ("2020", "하나카드", "liability"),
-    ("2030", "신한카드", "liability"),
+    ("2001", "KB국민카드", "liability"),
+    ("2002", "하나카드", "liability"),
+    ("2003", "신한카드", "liability"),
     # 자본
-    ("3010", "기초자본", "equity"),
+    ("3001", "기초자본", "equity"),
     # 수입
-    ("4010", "급여", "income"),
-    ("4020", "이자수입", "income"),
-    ("4030", "기타수입", "income"),
+    ("4001", "급여", "income"),
+    ("4002", "이자수입", "income"),
+    ("4003", "기타수입", "income"),
     # 비용
-    ("5010", "식비", "expense"),
-    ("5020", "교통비", "expense"),
-    ("5030", "통신비", "expense"),
-    ("5040", "쇼핑", "expense"),
-    ("5050", "의료비", "expense"),
-    ("5060", "기타비용", "expense"),
+    ("5001", "식비", "expense"),
+    ("5002", "교통비", "expense"),
+    ("5003", "통신비", "expense"),
+    ("5004", "쇼핑", "expense"),
+    ("5005", "의료비", "expense"),
+    ("5006", "기타비용", "expense"),
 ]
 
 
@@ -55,6 +55,16 @@ def seed_accounts():
         db.close()
 
 
+OLD_TO_NEW_CODES = {
+    "1010": "1001", "1020": "1002", "1030": "1003", "1040": "1004",
+    "2010": "2001", "2020": "2002", "2030": "2003",
+    "3010": "3001",
+    "4010": "4001", "4020": "4002", "4030": "4003",
+    "5010": "5001", "5020": "5002", "5030": "5003",
+    "5040": "5004", "5050": "5005", "5060": "5006",
+}
+
+
 def migrate_db():
     """Add new columns to existing tables if missing."""
     from sqlalchemy import text, inspect
@@ -66,6 +76,17 @@ def migrate_db():
         if "created_by" not in columns:
             conn.execute(text("ALTER TABLE journal_entries ADD COLUMN created_by TEXT NOT NULL DEFAULT ''"))
             conn.commit()
+
+        # Migrate old account codes to new format
+        row = conn.execute(text("SELECT code FROM accounts WHERE code = '1010' LIMIT 1")).fetchone()
+        if row:
+            for old, new in OLD_TO_NEW_CODES.items():
+                conn.execute(text("UPDATE accounts SET code = :new WHERE code = :old"), {"old": old, "new": new})
+            # Clear all journal entries/lines (user confirmed no important data)
+            conn.execute(text("DELETE FROM journal_lines"))
+            conn.execute(text("DELETE FROM journal_entries"))
+            conn.commit()
+            logging.info("Migrated account codes to new format")
 
 
 @asynccontextmanager
