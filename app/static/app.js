@@ -293,14 +293,23 @@ function app() {
     },
 
     availableGroups() {
-      return this.allAccounts.filter(a => a.is_group);
+      // Deduplicate groups by name, merge IDs
+      const all = this.allAccounts.filter(a => a.is_group);
+      const byName = {};
+      for (const g of all) {
+        if (!byName[g.name]) {
+          byName[g.name] = { name: g.name, ids: [] };
+        }
+        byName[g.name].ids.push(g.id);
+      }
+      return Object.values(byName);
     },
 
     initGroupFilter() {
-      const groups = this.availableGroups();
+      const all = this.allAccounts.filter(a => a.is_group);
       const updated = { ...this.acctGroupFilter };
       let changed = false;
-      for (const g of groups) {
+      for (const g of all) {
         if (!(g.id in updated)) {
           updated[g.id] = true;
           changed = true;
@@ -309,12 +318,19 @@ function app() {
       if (changed) this.acctGroupFilter = updated;
     },
 
-    toggleGroupFilter(groupId) {
-      this.acctGroupFilter = { ...this.acctGroupFilter, [groupId]: !this.acctGroupFilter[groupId] };
+    toggleGroupFilter(ids) {
+      const newVal = !this.acctGroupFilter[ids[0]];
+      const updated = { ...this.acctGroupFilter };
+      for (const id of ids) updated[id] = newVal;
+      this.acctGroupFilter = updated;
     },
 
     isGroupVisible(groupId) {
       return this.acctGroupFilter[groupId] !== false;
+    },
+
+    isGroupNameVisible(ids) {
+      return ids.some(id => this.acctGroupFilter[id] !== false);
     },
 
     allGroupedAccounts() {

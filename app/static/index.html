@@ -247,8 +247,8 @@
             <div x-show="availableGroups().length > 0" class="group-filter" x-cloak>
               <span class="group-filter-label">그룹 필터</span>
               <div class="group-filter-chips">
-                <template x-for="g in availableGroups()" :key="g.id">
-                  <label :class="isGroupVisible(g.id) ? 'group-chip group-chip-active' : 'group-chip'" @click="toggleGroupFilter(g.id)">
+                <template x-for="g in availableGroups()" :key="g.name">
+                  <label :class="isGroupNameVisible(g.ids) ? 'group-chip group-chip-active' : 'group-chip'" @click="toggleGroupFilter(g.ids)">
                     <span x-text="g.name"></span>
                   </label>
                 </template>
