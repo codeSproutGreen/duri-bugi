@@ -37,6 +37,7 @@ class RawMessage(Base):
     source_type = Column(Text, nullable=False)  # SMS / NOTIFICATION
     source = Column(Text, nullable=False)
     source_name = Column(Text, nullable=False)
+    device_name = Column(Text, nullable=False, default="")
     title = Column(Text, nullable=False, default="")
     content = Column(Text, nullable=False)
     timestamp = Column(Integer, nullable=False)  # epoch millis

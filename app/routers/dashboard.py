@@ -14,13 +14,16 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 
 @router.get("/dashboard", response_model=DashboardOut)
 def get_dashboard(db: Session = Depends(get_db)):
-    accounts = db.query(Account).filter(Account.is_active == 1, Account.is_deleted == 0).order_by(Account.code).all()
+    accounts = db.query(Account).order_by(Account.code).all()
 
     totals = {"asset": 0, "liability": 0, "income": 0, "expense": 0}
     account_balances = []
 
     for acct in accounts:
         balance = get_account_balance(db, acct.id)
+        # Skip deleted accounts with zero balance
+        if acct.is_deleted and balance == 0:
+            continue
         account_balances.append(AccountBalance(
             id=acct.id, code=acct.code, name=acct.name,
             type=acct.type, is_group=acct.is_group, balance=balance,
@@ -117,8 +120,6 @@ def get_income_expense(
     # Also get accounts with zero balance in range
     all_accts = db.query(Account).filter(
         Account.type.in_(["income", "expense"]),
-        Account.is_active == 1,
-        Account.is_deleted == 0,
     ).all()
 
     acct_totals = {}
@@ -132,6 +133,8 @@ def get_income_expense(
     result = {"expense": [], "income": []}
     for acct in all_accts:
         amount = acct_totals.get(acct.id, 0)
+        if acct.is_deleted and amount == 0:
+            continue
         result[acct.type].append({
             "id": acct.id,
             "code": acct.code,

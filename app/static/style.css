@@ -243,6 +243,18 @@ label { font-size: 12px; color: var(--text-muted); display: block; margin-bottom
 }
 .dnd-handle:active { cursor: grabbing; }
 .dnd-code { color: var(--text-muted); font-size: 12px; min-width: 50px; }
+.dnd-name { cursor: default; flex: 1; min-width: 0; }
+.dnd-name-input {
+  flex: 1; min-width: 0; font-size: 14px; padding: 2px 6px;
+  border: 1px solid var(--primary); border-radius: 4px;
+  background: var(--surface); color: var(--text); outline: none;
+}
+.btn-danger-ghost {
+  background: transparent; color: var(--text-muted); border: none; cursor: pointer;
+  font-size: 15px; padding: 2px 6px; border-radius: 4px; line-height: 1;
+}
+.btn-danger-ghost:hover { color: #ef4444; background: rgba(239,68,68,.1); }
+.acct-group { font-weight: 600; }
 .dnd-children {
   margin-left: 24px; padding: 0 8px 8px 8px;
   min-height: 8px; border-left: 2px solid var(--border);

@@ -31,6 +31,7 @@ CRITICAL RULES for suggested_debit_code and suggested_credit_code:
 - bank_transfer: debit=받는 계정 code, credit=보내는 계정 code
 - Match "신한카드" in message → find account named "신한카드" → use its code
 - Match "KB국민카드" → find "KB국민카드" → use its code
+- IMPORTANT: When device_name is provided, prefer device-prefixed accounts. Example: device_name="꾸폰" + "하나카드" in message → look for "꾸_하나카드" account first, fall back to "하나카드" if not found
 - If [Past Transactions] show same merchant mapped to specific accounts, use the same accounts
 - Amount must be integer (Korean Won)
 - For date, infer year as current year if only MM/DD given
@@ -53,7 +54,8 @@ def _strip_code_fences(text: str) -> str:
 
 
 def parse_message(source_name: str, content: str,
-                   accounts_context: str = "", history_context: str = "") -> dict | None:
+                   accounts_context: str = "", history_context: str = "",
+                   device_name: str = "") -> dict | None:
     """Parse a financial message using Gemini API. Returns parsed dict or None."""
     if not settings.gemini_api_key:
         log.warning("Gemini API key not configured")
@@ -63,6 +65,8 @@ def parse_message(source_name: str, content: str,
         client = _get_client()
         today = datetime.now().strftime("%Y-%m-%d")
         user_msg = f"today: {today}\nsource_name: {source_name}\nmessage: {content}"
+        if device_name:
+            user_msg += f"\ndevice_name: {device_name}"
 
         if accounts_context:
             user_msg += f"\n\n[Available Accounts]\n{accounts_context}"

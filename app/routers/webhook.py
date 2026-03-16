@@ -41,6 +41,7 @@ async def receive_webhook(
         source_type=payload.type,
         source=payload.source,
         source_name=payload.sourceName,
+        device_name=payload.deviceName,
         title=payload.title,
         content=payload.content,
         timestamp=payload.timestamp,

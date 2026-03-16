@@ -110,6 +110,13 @@ def migrate_db():
             conn.commit()
             logging.info("Added sort_order column to accounts")
 
+        # Add device_name column to raw_messages
+        msg_columns = [c["name"] for c in inspect(engine).get_columns("raw_messages")]
+        if "device_name" not in msg_columns:
+            conn.execute(text("ALTER TABLE raw_messages ADD COLUMN device_name TEXT NOT NULL DEFAULT ''"))
+            conn.commit()
+            logging.info("Added device_name column to raw_messages")
+
         # Migrate old account codes to new format
         row = conn.execute(text("SELECT code FROM accounts WHERE code = '1010' LIMIT 1")).fetchone()
         if row:

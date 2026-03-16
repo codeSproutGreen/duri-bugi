@@ -27,8 +27,8 @@ function app() {
     acctList: {},
     acctTab: 'asset',
     allAccounts: [],
-    acctEditMode: false,
-    acctPendingDeletes: [],
+    inlineEditId: 0,
+    inlineEditName: '',
     _sortables: [],
 
     // Report
@@ -310,6 +310,7 @@ function app() {
     async loadAccounts() {
       this.acctList = await this.get('/accounts');
       await this.loadAllAccounts();
+      this.$nextTick(() => this.initAllSortables());
     },
 
     async loadSettings() {
@@ -368,36 +369,19 @@ function app() {
       return this._sortBy(list);
     },
 
-    async toggleAcctEditMode() {
-      if (this.acctEditMode) {
-        // "완료" clicked — apply pending deletes
-        await this.applyAcctDeletes();
-        this.acctEditMode = false;
-        this.destroySortables();
-        await this.loadAccounts();
-      } else {
-        this.acctPendingDeletes = [];
-        this.acctEditMode = true;
-      }
+    startInlineEdit(acct) {
+      this.inlineEditId = acct.id;
+      this.inlineEditName = acct.name;
     },
 
-    markAcctDelete(id) {
-      if (this.acctPendingDeletes.includes(id)) {
-        this.acctPendingDeletes = this.acctPendingDeletes.filter(x => x !== id);
-      } else {
-        this.acctPendingDeletes.push(id);
-      }
-    },
-
-    async applyAcctDeletes() {
-      for (const id of this.acctPendingDeletes) {
-        const res = await fetch(`${API}/accounts/${id}`, { method: 'DELETE' });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          alert(err.detail || '삭제 실패');
-        }
-      }
-      this.acctPendingDeletes = [];
+    async saveInlineEdit(acct) {
+      if (this.inlineEditId !== acct.id) return;
+      const newName = this.inlineEditName.trim();
+      this.inlineEditId = 0;
+      if (!newName || newName === acct.name) return;
+      await this.put(`/accounts/${acct.id}`, { name: newName });
+      await this.loadAccounts();
+      this.$nextTick(() => this.initAllSortables());
     },
 
     destroySortables() {
@@ -500,10 +484,7 @@ function app() {
       }
       this.showAcctModal = false;
       await this.loadAccounts();
-      // Re-init sortables if in edit mode
-      if (this.acctEditMode) {
-        this.$nextTick(() => this.initAllSortables());
-      }
+      this.$nextTick(() => this.initAllSortables());
     },
 
     async deleteAcct(id) {

@@ -136,7 +136,8 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
     # 3. Call AI parser with context
     parsed = parse_message(msg.source_name, msg.content,
                            accounts_context=accounts_context,
-                           history_context=history_context)
+                           history_context=history_context,
+                           device_name=getattr(msg, 'device_name', '') or '')
     if not parsed:
         msg.status = "failed"
         msg.ai_result = json.dumps({"error": "AI parse returned None"}, ensure_ascii=False)

@@ -185,11 +185,6 @@ def delete_account(acct_id: int, request: Request, db: Session = Depends(get_db)
     if not acct:
         raise HTTPException(404, "Account not found")
 
-    # Block if account has transactions
-    used = db.query(JournalLine).filter(JournalLine.account_id == acct_id).first()
-    if used:
-        raise HTTPException(400, "거래 내역이 있는 계정은 삭제할 수 없습니다.")
-
     # Block if account has active children
     children = db.query(Account).filter(
         Account.parent_id == acct_id, Account.is_deleted == 0

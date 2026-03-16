@@ -10,6 +10,7 @@ class WebhookPayload(BaseModel):
     title: str = ""
     content: str
     timestamp: int
+    deviceName: str = ""
 
 
 # ── Accounts ──
