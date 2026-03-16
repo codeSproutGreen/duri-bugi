@@ -244,6 +244,17 @@
                         style="resize:vertical;min-height:36px"></textarea>
             </div>
 
+            <div x-show="availableGroups().length > 0" class="group-filter" x-cloak>
+              <span class="group-filter-label">그룹 필터</span>
+              <div class="group-filter-chips">
+                <template x-for="g in availableGroups()" :key="g.id">
+                  <label :class="isGroupVisible(g.id) ? 'group-chip group-chip-active' : 'group-chip'" @click="toggleGroupFilter(g.id)">
+                    <span x-text="g.name"></span>
+                  </label>
+                </template>
+              </div>
+            </div>
+
             <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
               <label style="font-size:13px;font-weight:600;color:var(--text)">차변</label>
               <span class="info-tip" @click="showDebitTip=!showDebitTip" title="차변이란?">i</span>
@@ -258,7 +269,7 @@
                   <span class="acct-pick-type-label" x-text="t.label"></span>
                   <div class="acct-pick-type-body">
                     <template x-for="g in t.groups" :key="g.label || '_ungrouped'">
-                      <div class="acct-pick-group">
+                      <div class="acct-pick-group" :class="g.label && 'has-group-label'">
                         <template x-if="g.label">
                           <span class="acct-pick-group-label" x-text="g.label"></span>
                         </template>
@@ -289,7 +300,7 @@
                   <span class="acct-pick-type-label" x-text="t.label"></span>
                   <div class="acct-pick-type-body">
                     <template x-for="g in t.groups" :key="g.label || '_ungrouped'">
-                      <div class="acct-pick-group">
+                      <div class="acct-pick-group" :class="g.label && 'has-group-label'">
                         <template x-if="g.label">
                           <span class="acct-pick-group-label" x-text="g.label"></span>
                         </template>
@@ -721,13 +732,15 @@
       <h1>설정</h1>
 
       <h2>테마</h2>
-      <div class="card">
-        <div class="toggle-wrap" style="border-bottom:none">
-          <div>
-            <div class="toggle-label">다크 모드</div>
-            <div class="toggle-desc">어두운 배경 테마로 전환합니다.</div>
-          </div>
-          <button class="toggle" :class="theme==='dark' && 'on'" @click="toggleTheme()"></button>
+      <div class="card" style="padding:12px">
+        <div class="theme-grid">
+          <template x-for="p in themePresets" :key="p.id">
+            <button class="theme-preset" :class="theme===p.id && 'theme-preset-active'"
+                    @click="setTheme(p.id)">
+              <span class="theme-preview" :data-theme="p.id"></span>
+              <span class="theme-preset-name" x-text="p.name"></span>
+            </button>
+          </template>
         </div>
       </div>
 

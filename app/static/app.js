@@ -4,6 +4,18 @@ function app() {
   return {
     page: 'dashboard',
     theme: localStorage.getItem('theme') || 'dark',
+    themePresets: [
+      { id: 'dark', name: 'Forest Dark', icon: '🌲', dark: true },
+      { id: 'light', name: 'Forest Light', icon: '🌿', dark: false },
+      { id: 'ocean-dark', name: 'Ocean Dark', icon: '🌊', dark: true },
+      { id: 'ocean-light', name: 'Ocean Light', icon: '🏖️', dark: false },
+      { id: 'sunset-dark', name: 'Sunset Dark', icon: '🌅', dark: true },
+      { id: 'sunset-light', name: 'Sunset Light', icon: '☀️', dark: false },
+      { id: 'sage', name: 'Sage', icon: '🍵', dark: false },
+      { id: 'tropical', name: 'Tropical', icon: '🌺', dark: false },
+      { id: 'blossom', name: 'Blossom', icon: '🌸', dark: false },
+      { id: 'midnight', name: 'Midnight', icon: '🌑', dark: true },
+    ],
     sidebarOpen: localStorage.getItem('sidebar') !== 'collapsed',
 
     // PIN auth
@@ -64,6 +76,7 @@ function app() {
     rules: [],
     showRuleModal: false,
     editingRule: {},
+    acctGroupFilter: {},  // { groupId: true/false } — checked groups show their children
 
     async init() {
       // Check PIN auth first
@@ -143,10 +156,21 @@ function app() {
       }
     },
 
+    setTheme(themeId) {
+      this.theme = themeId;
+      document.documentElement.setAttribute('data-theme', themeId);
+      localStorage.setItem('theme', themeId);
+    },
+
     toggleTheme() {
-      this.theme = this.theme === 'dark' ? 'light' : 'dark';
-      document.documentElement.setAttribute('data-theme', this.theme);
-      localStorage.setItem('theme', this.theme);
+      // Legacy: toggle between current theme's dark/light pair
+      const cur = this.themePresets.find(p => p.id === this.theme);
+      if (!cur) return this.setTheme('dark');
+      const base = this.theme.replace(/-?(dark|light)$/, '');
+      const pair = cur.dark
+        ? this.themePresets.find(p => p.id === (base ? base + '-light' : 'light'))
+        : this.themePresets.find(p => p.id === (base ? base + '-dark' : 'dark'));
+      this.setTheme(pair ? pair.id : 'dark');
     },
 
     toggleSidebar() {
@@ -223,6 +247,7 @@ function app() {
       for (const type of ['expense', 'asset', 'liability', 'income', 'equity']) {
         if (grouped[type]) this.allAccounts.push(...grouped[type]);
       }
+      this.initGroupFilter();
     },
 
     async saveEntry() {
@@ -267,6 +292,31 @@ function app() {
       return { asset: '자산', liability: '부채', equity: '자본', income: '수익', expense: '비용' }[type] || type;
     },
 
+    availableGroups() {
+      return this.allAccounts.filter(a => a.is_group);
+    },
+
+    initGroupFilter() {
+      const groups = this.availableGroups();
+      const updated = { ...this.acctGroupFilter };
+      let changed = false;
+      for (const g of groups) {
+        if (!(g.id in updated)) {
+          updated[g.id] = true;
+          changed = true;
+        }
+      }
+      if (changed) this.acctGroupFilter = updated;
+    },
+
+    toggleGroupFilter(groupId) {
+      this.acctGroupFilter = { ...this.acctGroupFilter, [groupId]: !this.acctGroupFilter[groupId] };
+    },
+
+    isGroupVisible(groupId) {
+      return this.acctGroupFilter[groupId] !== false;
+    },
+
     allGroupedAccounts() {
       const typeOrder = ['expense', 'income', 'asset', 'liability', 'equity'];
       const result = [];
@@ -278,6 +328,8 @@ function app() {
         const groupMap = {};
         for (const a of accts) {
           const pid = a.parent_id || 0;
+          // Filter: ungrouped (no parent) always shown; grouped shown only if group is checked
+          if (pid && !this.isGroupVisible(pid)) continue;
           if (!groupMap[pid]) {
             const parent = pid ? this.allAccounts.find(p => p.id === pid) : null;
             groupMap[pid] = { label: parent ? parent.name : null, accounts: [], sort: parent ? parent.sort_order : 99999 };
@@ -286,7 +338,7 @@ function app() {
           groupMap[pid].accounts.push(a);
         }
         groups.sort((a, b) => a.sort - b.sort);
-        result.push({ type, label: this.accountTypeLabel(type), groups });
+        if (groups.length) result.push({ type, label: this.accountTypeLabel(type), groups });
       }
       return result;
     },
