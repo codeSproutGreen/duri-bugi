@@ -233,6 +233,8 @@ def reject_entry(entry_id: int, request: Request, db: Session = Depends(get_db))
 
 def _upsert_category_rule(db: Session, merchant: str, lines: list[JournalLine]):
     """Create or update a category rule based on confirmed entry."""
+    if merchant.endswith("카드"):
+        return
     debit_line = next((l for l in lines if l.debit > 0), None)
     credit_line = next((l for l in lines if l.credit > 0), None)
     if not debit_line or not credit_line:
