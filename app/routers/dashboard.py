@@ -5,7 +5,7 @@ from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account, JournalEntry, JournalLine, RawMessage
+from app.models import Account, JournalEntry, JournalLine, RawMessage, StockPerson, StockAccount, StockHolding, RealEstate
 from app.schemas import DashboardOut, AccountBalance, MonthlyRow
 from app.services.ledger import get_account_balance
 
@@ -37,12 +37,33 @@ def get_dashboard(db: Session = Depends(get_db)):
         JournalEntry.is_confirmed == 0
     ).scalar() or 0
 
+    # Stocks total (exclude linked account balances already counted in totals)
+    stocks_total = 0
+    for h in db.query(StockHolding).filter(StockHolding.quantity > 0).all():
+        stocks_total += h.quantity * h.current_price
+    # Add cash in stock accounts (예수금)
+    linked_ids = {
+        sa.linked_account_id
+        for sa in db.query(StockAccount).filter(StockAccount.linked_account_id.isnot(None)).all()
+    }
+    stock_cash = sum(get_account_balance(db, lid) for lid in linked_ids)
+    stocks_total += stock_cash
+
+    # Real estate total
+    realestate_total = db.query(func.coalesce(func.sum(RealEstate.value), 0)).scalar()
+
+    total_asset_all = totals["asset"] + stocks_total + realestate_total
+    # Subtract linked accounts already counted in totals["asset"] to avoid double counting
+    total_asset_all -= stock_cash
+
     return DashboardOut(
-        total_asset=totals["asset"],
+        total_asset=total_asset_all,
         total_liability=totals["liability"],
         total_income=totals["income"],
         total_expense=totals["expense"],
-        net_worth=totals["asset"] - totals["liability"],
+        net_worth=total_asset_all - totals["liability"],
+        stocks_total=stocks_total,
+        realestate_total=realestate_total,
         accounts=account_balances,
         pending_count=pending_count,
     )
@@ -191,16 +212,13 @@ def get_trend(
         elif row.type == "liability":
             daily[d]["liability"] += (row.total_credit or 0) - (row.total_debit or 0)
 
-    # Fill in cumulative values day by day
+    # Fill in cumulative values and aggregate by month
     all_dates = sorted(daily.keys())
     if not all_dates:
         return []
 
-    result = []
     cum_asset = 0
     cum_liability = 0
-    d = date.fromisoformat(max(start, all_dates[0]))
-    end_date = date.fromisoformat(min(end, all_dates[-1]))
 
     # Pre-accumulate everything before start
     for dd in all_dates:
@@ -208,17 +226,23 @@ def get_trend(
             cum_asset += daily[dd]["asset"]
             cum_liability += daily[dd]["liability"]
 
+    # Walk day by day, keep last value per month
+    d = date.fromisoformat(max(start, all_dates[0]))
+    end_date = date.fromisoformat(min(end, all_dates[-1]))
+    monthly = {}  # "YYYY-MM" -> {date, asset, liability, net_worth}
+
     while d <= end_date:
         ds = d.isoformat()
         if ds in daily:
             cum_asset += daily[ds]["asset"]
             cum_liability += daily[ds]["liability"]
-        result.append({
+        month_key = ds[:7]  # "YYYY-MM"
+        monthly[month_key] = {
             "date": ds,
             "asset": cum_asset,
             "liability": cum_liability,
             "net_worth": cum_asset - cum_liability,
-        })
+        }
         d += timedelta(days=1)
 
-    return result
+    return list(monthly.values())

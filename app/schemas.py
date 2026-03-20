@@ -130,6 +130,8 @@ class DashboardOut(BaseModel):
     total_income: int = 0
     total_expense: int = 0
     net_worth: int = 0
+    stocks_total: int = 0
+    realestate_total: int = 0
     accounts: list[AccountBalance] = []
     pending_count: int = 0
 

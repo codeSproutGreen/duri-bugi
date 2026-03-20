@@ -622,7 +622,7 @@
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-sm" :class="periodMode==='year'?'btn-primary':'btn-outline'" @click="setPeriodMode('year')">연도별</button>
           <button class="btn btn-sm" :class="periodMode==='quarter'?'btn-primary':'btn-outline'" @click="setPeriodMode('quarter')">분기별</button>
-          <button class="btn btn-sm" :class="periodMode==='month'?'btn-primary':'btn-outline'" @click="setPeriodMode('month')">월별</button>
+          <button class="btn btn-sm btn-outline" @click="setThisMonth()">이번달</button>
           <button class="btn btn-sm" :class="periodMode==='custom'?'btn-primary':'btn-outline'" @click="periodMode='custom'">직접입력</button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-left:8px">
@@ -643,26 +643,25 @@
               </select>
             </div>
           </template>
-          <template x-if="periodMode==='month'">
-            <div style="display:flex;gap:6px">
-              <select style="width:90px" x-model="periodYear" @change="applyPeriod()">
+          <template x-if="periodMode==='custom' || periodMode==='thisMonth'">
+            <div style="display:flex;gap:6px;align-items:center">
+              <select style="width:95px" :value="reportStart.slice(0,4)" @change="setMonthRange($event.target.value+'-'+reportStart.slice(5,7), reportEnd.slice(0,7))">
                 <template x-for="y in periodYears()" :key="y"><option :value="y" x-text="y+'년'"></option></template>
               </select>
-              <select style="width:75px" x-model.number="periodMonth" @change="applyPeriod()">
+              <select style="width:70px" :value="parseInt(reportStart.slice(5,7))" @change="setMonthRange(reportStart.slice(0,4)+'-'+String($event.target.value).padStart(2,'0'), reportEnd.slice(0,7))">
+                <template x-for="m in 12" :key="m"><option :value="m" x-text="m+'월'"></option></template>
+              </select>
+              <span style="color:var(--text-muted)">~</span>
+              <select style="width:95px" :value="reportEnd.slice(0,4)" @change="setMonthRange(reportStart.slice(0,7), $event.target.value+'-'+reportEnd.slice(5,7))">
+                <template x-for="y in periodYears()" :key="y"><option :value="y" x-text="y+'년'"></option></template>
+              </select>
+              <select style="width:70px" :value="parseInt(reportEnd.slice(5,7))" @change="setMonthRange(reportStart.slice(0,7), reportEnd.slice(0,4)+'-'+String($event.target.value).padStart(2,'0'))">
                 <template x-for="m in 12" :key="m"><option :value="m" x-text="m+'월'"></option></template>
               </select>
             </div>
           </template>
-          <template x-if="periodMode==='custom'">
-            <div style="display:flex;gap:6px;align-items:center">
-              <input type="date" x-model="reportStart" style="width:140px" @change="loadReport()">
-              <span style="color:var(--text-muted)">~</span>
-              <input type="date" x-model="reportEnd" style="width:140px" @change="loadReport()">
-            </div>
-          </template>
           <button class="btn btn-sm btn-outline" @click="shiftPeriod(1)">&rsaquo;</button>
         </div>
-        <span style="color:var(--text-muted);font-size:13px;margin-left:4px" x-text="reportStart + ' ~ ' + reportEnd"></span>
       </div>
 
       <!-- Tabs -->

@@ -50,13 +50,13 @@ function app() {
     _sortables: [],
 
     // Report
-    reportStart: new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1).toISOString().slice(0, 10),
+    reportStart: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1).toISOString().slice(0, 10),
     reportEnd: new Date().toISOString().slice(0, 10),
     reportData: [],
     reportShowAsset: true,
     reportShowLiability: true,
     reportTab: 'trend',
-    periodMode: 'month',
+    periodMode: 'custom',
     periodYear: String(new Date().getFullYear()),
     periodMonth: new Date().getMonth() + 1,
     periodQuarter: Math.ceil((new Date().getMonth() + 1) / 3),
@@ -751,6 +751,28 @@ function app() {
       this.applyPeriod();
     },
 
+    _localDate(y, m, d) {
+      return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    },
+
+    setMonthRange(startYM, endYM) {
+      const [sy, sm] = startYM.split('-').map(Number);
+      const [ey, em] = endYM.split('-').map(Number);
+      this.reportStart = this._localDate(sy, sm - 1, 1);
+      this.reportEnd = this._localDate(ey, em - 1, new Date(ey, em, 0).getDate());
+      this.periodMode = 'custom';
+      this.loadReport();
+    },
+
+    setThisMonth() {
+      const now = new Date();
+      const y = now.getFullYear(), m = now.getMonth();
+      this.reportStart = this._localDate(y, m, 1);
+      this.reportEnd = this._localDate(y, m, new Date(y, m + 1, 0).getDate());
+      this.periodMode = 'thisMonth';
+      this.loadReport();
+    },
+
     applyPeriod() {
       const y = parseInt(this.periodYear);
       if (this.periodMode === 'year') {
@@ -782,22 +804,25 @@ function app() {
         if (q < 1) { q = 4; y--; }
         this.periodQuarter = q;
         this.periodYear = String(y);
-      } else if (this.periodMode === 'month') {
-        let m = this.periodMonth + dir;
-        let y = parseInt(this.periodYear);
-        if (m > 12) { m = 1; y++; }
-        if (m < 1) { m = 12; y--; }
-        this.periodMonth = m;
-        this.periodYear = String(y);
+      } else if (this.periodMode === 'thisMonth') {
+        const parts = this.reportStart.split('-');
+        let y = parseInt(parts[0]), m = parseInt(parts[1]) - 1 + dir;
+        if (m > 11) { m = 0; y++; }
+        if (m < 0) { m = 11; y--; }
+        this.reportStart = this._localDate(y, m, 1);
+        this.reportEnd = this._localDate(y, m, new Date(y, m + 1, 0).getDate());
+        this.loadReport();
+        return;
       } else {
-        // custom: shift by the current range length
-        const s = new Date(this.reportStart);
-        const e = new Date(this.reportEnd);
-        const days = Math.round((e - s) / 86400000) + 1;
-        s.setDate(s.getDate() + days * dir);
-        e.setDate(e.getDate() + days * dir);
-        this.reportStart = s.toISOString().slice(0, 10);
-        this.reportEnd = e.toISOString().slice(0, 10);
+        // custom: shift both start and end by 1 month, preserving range
+        const sp = this.reportStart.split('-').map(Number);
+        const ep = this.reportEnd.split('-').map(Number);
+        let sm = sp[1] - 1 + dir, sy = sp[0];
+        if (sm > 11) { sm = 0; sy++; } else if (sm < 0) { sm = 11; sy--; }
+        let em = ep[1] - 1 + dir, ey = ep[0];
+        if (em > 11) { em = 0; ey++; } else if (em < 0) { em = 11; ey--; }
+        this.reportStart = this._localDate(sy, sm, 1);
+        this.reportEnd = this._localDate(ey, em, new Date(ey, em + 1, 0).getDate());
         this.loadReport();
         return;
       }
@@ -875,9 +900,9 @@ function app() {
       ctx.textAlign = 'center';
       const labelStep = Math.max(1, Math.floor(data.length / 6));
       for (let i = 0; i < data.length; i += labelStep) {
-        ctx.fillText(data[i].date.slice(5), x(i), H - pad.bottom + 16);
+        ctx.fillText(data[i].date.slice(0, 7), x(i), H - pad.bottom + 16);
       }
-      if (data.length > 1) ctx.fillText(data[data.length - 1].date.slice(5), x(data.length - 1), H - pad.bottom + 16);
+      if (data.length > 1) ctx.fillText(data[data.length - 1].date.slice(0, 7), x(data.length - 1), H - pad.bottom + 16);
 
       // Draw lines and dots
       for (const s of series) {
