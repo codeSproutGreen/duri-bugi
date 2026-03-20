@@ -809,7 +809,7 @@
       <h1>자산관리</h1>
       <div class="tabs" style="margin-bottom:12px">
         <div class="tab" :class="assetTab==='summary' && 'active'" @click="assetTab='summary'">종합</div>
-        <div class="tab" :class="assetTab==='stocks' && 'active'" @click="assetTab='stocks'; loadStockPersons()">주식</div>
+        <div class="tab" :class="assetTab==='stocks' && 'active'" @click="assetTab='stocks'; loadStockPersons(); loadAllAccounts()">주식</div>
         <div class="tab" :class="assetTab==='realestate' && 'active'" @click="assetTab='realestate'; loadRealEstate()">부동산</div>
       </div>
 
@@ -1051,7 +1051,7 @@
         <div class="form-group"><label>예수금 연결계정</label>
           <select x-model="editingStockAccount.linked_account_id">
             <option :value="null">없음</option>
-            <template x-for="a in allAccounts.filter(a => a.type==='asset' && !a.is_group)" :key="a.id">
+            <template x-for="a in allAccounts.filter(a => a.type==='asset' && !a.is_group && a.name.endsWith('예수금'))" :key="a.id">
               <option :value="a.id" x-text="a.name"></option>
             </template>
           </select>
