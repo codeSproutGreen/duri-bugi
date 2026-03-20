@@ -991,6 +991,17 @@ function app() {
       this.loadStockPersons();
     },
 
+    async lookupTicker() {
+      const ticker = this.editingStockHolding.ticker?.trim();
+      if (!ticker || ticker.length < 4) return;
+      try {
+        const res = await this.get(`/assets/stock/lookup/${ticker}`);
+        if (res && res.name) {
+          this.editingStockHolding.name = res.name;
+        }
+      } catch (e) { /* not found, user fills manually */ }
+    },
+
     async saveStockHolding() {
       const h = this.editingStockHolding;
       if (!h.ticker || !h.name) return alert('종목코드와 이름을 입력하세요');

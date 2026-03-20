@@ -16,7 +16,7 @@ from app.schemas import (
     RealEstateCreate, RealEstateUpdate, RealEstateOut,
     AssetSummaryOut,
 )
-from app.services.stock_price import fetch_prices
+from app.services.stock_price import fetch_prices, lookup_ticker
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 log = logging.getLogger(__name__)
@@ -157,6 +157,15 @@ def delete_account(aid: int, db: Session = Depends(get_db)):
     db.delete(a)
     db.commit()
     return {"ok": True}
+
+
+# ── Ticker Lookup ──
+@router.get("/stock/lookup/{ticker}")
+def stock_lookup(ticker: str):
+    result = lookup_ticker(ticker)
+    if not result:
+        raise HTTPException(404, "종목을 찾을 수 없습니다")
+    return result
 
 
 # ── Stock Holdings ──
