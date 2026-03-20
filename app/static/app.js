@@ -50,8 +50,8 @@ function app() {
     _sortables: [],
 
     // Report
-    reportStart: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1).toISOString().slice(0, 10),
-    reportEnd: new Date().toISOString().slice(0, 10),
+    reportStart: (() => { const d = new Date(); const y = d.getFullYear(), m = d.getMonth() - 11; const s = new Date(y, m, 1); return `${s.getFullYear()}-${String(s.getMonth()+1).padStart(2,'0')}-01`; })(),
+    reportEnd: (() => { const d = new Date(); const y = d.getFullYear(), m = d.getMonth(); return `${y}-${String(m+1).padStart(2,'0')}-${String(new Date(y, m+1, 0).getDate()).padStart(2,'0')}`; })(),
     reportData: [],
     reportShowAsset: true,
     reportShowLiability: true,

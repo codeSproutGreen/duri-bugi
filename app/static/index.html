@@ -645,17 +645,17 @@
           </template>
           <template x-if="periodMode==='custom' || periodMode==='thisMonth'">
             <div style="display:flex;gap:6px;align-items:center">
-              <select style="width:95px" :value="reportStart.slice(0,4)" @change="setMonthRange($event.target.value+'-'+reportStart.slice(5,7), reportEnd.slice(0,7))">
+              <select style="width:95px" x-effect="$nextTick(()=>$el.value=reportStart.slice(0,4))" @change="setMonthRange($event.target.value+'-'+reportStart.slice(5,7), reportEnd.slice(0,7))">
                 <template x-for="y in periodYears()" :key="y"><option :value="y" x-text="y+'년'"></option></template>
               </select>
-              <select style="width:70px" :value="parseInt(reportStart.slice(5,7))" @change="setMonthRange(reportStart.slice(0,4)+'-'+String($event.target.value).padStart(2,'0'), reportEnd.slice(0,7))">
+              <select style="width:70px" x-effect="$nextTick(()=>$el.value=reportStart.slice(5,7).replace(/^0/,''))" @change="setMonthRange(reportStart.slice(0,4)+'-'+String($event.target.value).padStart(2,'0'), reportEnd.slice(0,7))">
                 <template x-for="m in 12" :key="m"><option :value="m" x-text="m+'월'"></option></template>
               </select>
               <span style="color:var(--text-muted)">~</span>
-              <select style="width:95px" :value="reportEnd.slice(0,4)" @change="setMonthRange(reportStart.slice(0,7), $event.target.value+'-'+reportEnd.slice(5,7))">
+              <select style="width:95px" x-effect="$nextTick(()=>$el.value=reportEnd.slice(0,4))" @change="setMonthRange(reportStart.slice(0,7), $event.target.value+'-'+reportEnd.slice(5,7))">
                 <template x-for="y in periodYears()" :key="y"><option :value="y" x-text="y+'년'"></option></template>
               </select>
-              <select style="width:70px" :value="parseInt(reportEnd.slice(5,7))" @change="setMonthRange(reportStart.slice(0,7), reportEnd.slice(0,4)+'-'+String($event.target.value).padStart(2,'0'))">
+              <select style="width:70px" x-effect="$nextTick(()=>$el.value=reportEnd.slice(5,7).replace(/^0/,''))" @change="setMonthRange(reportStart.slice(0,7), reportEnd.slice(0,4)+'-'+String($event.target.value).padStart(2,'0'))">
                 <template x-for="m in 12" :key="m"><option :value="m" x-text="m+'월'"></option></template>
               </select>
             </div>
