@@ -80,6 +80,7 @@ function app() {
     sellingStockHolding: {},
     editingRealEstate: {},
     priceRefreshing: false,
+    _holdingSortables: [],
 
     // Messages
     messages: [],
@@ -929,6 +930,20 @@ function app() {
       if (!total) return '0';
       return Math.round(this.assetSummary[key] / total * 100);
     },
+    assetPctVal(val) {
+      const total = this.assetSummary.total_assets;
+      if (!total) return '0';
+      return Math.round(val / total * 100);
+    },
+
+    stocksSectionAccounts(type) {
+      return (this.assetSummary.stocks_by_person || []).flatMap(p => p.accounts.filter(a => a.account_type === type));
+    },
+    stocksSectionTotal(type) {
+      return this.stocksSectionAccounts(type).reduce((s, a) => s + a.total_value, 0);
+    },
+    stocksCashTotal() { return this.stocksSectionTotal('cash'); },
+    stocksPensionTotal() { return this.stocksSectionTotal('pension'); },
 
     groupByBrokerage(accounts) {
       const map = {};
@@ -946,10 +961,12 @@ function app() {
 
     async loadStockPersons() {
       this.stockPersons = await this.get('/assets/stock/persons');
+      this.loadAssetSummary();
     },
 
     async loadRealEstate() {
       this.realEstateItems = await this.get('/assets/realestate');
+      this.loadAssetSummary();
     },
 
     async saveStockPerson() {
@@ -992,12 +1009,14 @@ function app() {
     },
 
     async lookupTicker() {
-      const ticker = this.editingStockHolding.ticker?.trim();
-      if (!ticker || ticker.length < 4) return;
+      const h = this.editingStockHolding;
+      const ticker = h.ticker?.trim();
+      if (!ticker || ticker.length < 2) return;
       try {
-        const res = await this.get(`/assets/stock/lookup/${ticker}`);
+        const ex = h.is_foreign ? `?exchange=${h.exchange || 'O'}` : '';
+        const res = await this.get(`/assets/stock/lookup/${ticker}${ex}`);
         if (res && res.name) {
-          this.editingStockHolding.name = res.name;
+          h.name = res.name;
         }
       } catch (e) { /* not found, user fills manually */ }
     },
@@ -1005,10 +1024,11 @@ function app() {
     async saveStockHolding() {
       const h = this.editingStockHolding;
       if (!h.ticker || !h.name) return alert('종목코드와 이름을 입력하세요');
+      const exchange = h.is_foreign ? (h.exchange || 'O') : null;
       if (h.id) {
-        await this.put(`/assets/stock/holdings/${h.id}`, { ticker: h.ticker, name: h.name, quantity: h.quantity, avg_price: h.avg_price });
+        await this.put(`/assets/stock/holdings/${h.id}`, { ticker: h.ticker, name: h.name, exchange, quantity: h.quantity, avg_price: h.avg_price });
       } else {
-        await this.post('/assets/stock/holdings', { account_id: h.account_id, ticker: h.ticker, name: h.name, quantity: h.quantity, avg_price: h.avg_price });
+        await this.post('/assets/stock/holdings', { account_id: h.account_id, ticker: h.ticker, name: h.name, exchange, quantity: h.quantity, avg_price: h.avg_price });
       }
       this.showStockHoldingModal = false;
       this.loadStockPersons();
@@ -1017,6 +1037,21 @@ function app() {
     async deleteStockHolding(id) {
       await this.del(`/assets/stock/holdings/${id}`);
       this.loadStockPersons();
+    },
+
+    initHoldingSortable(el, accountId) {
+      if (typeof Sortable === 'undefined') return;
+      Sortable.create(el, {
+        handle: '.dnd-handle',
+        animation: 200,
+        ghostClass: 'sortable-ghost',
+        onEnd: async () => {
+          const rows = Array.from(el.querySelectorAll('tr[data-id]'));
+          const data = rows.map((r, i) => ({ id: Number(r.dataset.id), sort_order: i }));
+          await this.put('/assets/stock/holdings/reorder', data);
+          this.loadStockPersons();
+        },
+      });
     },
 
     async sellStockHolding() {

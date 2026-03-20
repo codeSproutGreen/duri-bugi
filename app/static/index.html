@@ -831,17 +831,20 @@
           <div class="card" style="margin-top:12px" x-show="assetSummary.total_assets > 0">
             <div class="label" style="margin-bottom:8px">자산 구성</div>
             <div class="asset-bar">
-              <div class="asset-bar-seg asset-bar-cash" :style="'width:'+assetPct('cash_bank')+'%'"
+              <div class="asset-bar-seg asset-bar-cash" :style="'width:'+assetPctVal(assetSummary.cash_bank)+'%'"
                    x-show="assetSummary.cash_bank > 0"></div>
-              <div class="asset-bar-seg asset-bar-stock" :style="'width:'+assetPct('stocks_total')+'%'"
-                   x-show="assetSummary.stocks_total > 0"></div>
-              <div class="asset-bar-seg asset-bar-re" :style="'width:'+assetPct('realestate_total')+'%'"
+              <div class="asset-bar-seg asset-bar-stock" :style="'width:'+assetPctVal(stocksCashTotal())+'%'"
+                   x-show="stocksCashTotal() > 0"></div>
+              <div class="asset-bar-seg asset-bar-pension" :style="'width:'+assetPctVal(stocksPensionTotal())+'%'"
+                   x-show="stocksPensionTotal() > 0"></div>
+              <div class="asset-bar-seg asset-bar-re" :style="'width:'+assetPctVal(assetSummary.realestate_total)+'%'"
                    x-show="assetSummary.realestate_total > 0"></div>
             </div>
-            <div style="display:flex;gap:16px;margin-top:8px;font-size:12px">
-              <span class="asset-legend"><span class="asset-dot asset-bar-cash"></span>현금/예금 <span x-text="assetPct('cash_bank')+'%'"></span></span>
-              <span class="asset-legend"><span class="asset-dot asset-bar-stock"></span>주식 <span x-text="assetPct('stocks_total')+'%'"></span></span>
-              <span class="asset-legend"><span class="asset-dot asset-bar-re"></span>부동산 <span x-text="assetPct('realestate_total')+'%'"></span></span>
+            <div style="display:flex;gap:16px;margin-top:8px;font-size:12px;flex-wrap:wrap">
+              <span class="asset-legend"><span class="asset-dot asset-bar-cash"></span>현금/예금 <span x-text="assetPctVal(assetSummary.cash_bank)+'%'"></span></span>
+              <span class="asset-legend"><span class="asset-dot asset-bar-stock"></span>주식(현금성) <span x-text="assetPctVal(stocksCashTotal())+'%'"></span></span>
+              <span class="asset-legend"><span class="asset-dot asset-bar-pension"></span>주식(연금성) <span x-text="assetPctVal(stocksPensionTotal())+'%'"></span></span>
+              <span class="asset-legend"><span class="asset-dot asset-bar-re"></span>부동산 <span x-text="assetPctVal(assetSummary.realestate_total)+'%'"></span></span>
             </div>
           </div>
 
@@ -852,8 +855,12 @@
               <div class="label">현금/예금</div>
             </div>
             <div class="card stat-card">
-              <div class="value" x-text="fmt(assetSummary.stocks_total)"></div>
-              <div class="label">주식</div>
+              <div class="value" x-text="fmt(stocksCashTotal())"></div>
+              <div class="label">주식(현금성)</div>
+            </div>
+            <div class="card stat-card">
+              <div class="value" x-text="fmt(stocksPensionTotal())"></div>
+              <div class="label">주식(연금성)</div>
             </div>
             <div class="card stat-card">
               <div class="value" x-text="fmt(assetSummary.realestate_total)"></div>
@@ -861,44 +868,52 @@
             </div>
           </div>
 
-          <!-- Per-person stock summary -->
-          <template x-for="person in assetSummary.stocks_by_person || []" :key="person.id">
-            <div class="card" style="margin-top:12px">
-              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
-                <h3 style="margin:0" x-text="person.name"></h3>
-                <span style="font-size:18px;font-weight:600" x-text="fmt(person.total_value)"></span>
-              </div>
-              <template x-for="bgroup in groupByBrokerage(person.accounts)" :key="bgroup.brokerage">
-                <div style="margin-bottom:10px">
-                  <div style="font-size:0.85em;color:var(--text-muted);margin-bottom:4px" x-text="bgroup.brokerage"></div>
-                  <template x-for="acct in bgroup.accounts" :key="acct.id">
-                <div style="margin-bottom:6px;padding:8px;border-radius:8px;background:var(--accent-bg,rgba(255,255,255,0.03))">
-                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-weight:500">
-                    <span>
-                      <span x-text="acct.name"></span>
-                      <span class="acct-type-badge" :class="acct.account_type==='pension' ? 'badge-pension' : 'badge-cash'"
-                            x-text="acct.account_type==='pension' ? '연금' : '현금'"></span>
-                    </span>
-                    <span x-text="fmt(acct.total_value)"></span>
-                  </div>
-                  <template x-for="h in acct.holdings" :key="h.id">
-                    <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.88em">
-                      <span>
-                        <span x-text="h.name"></span>
-                        <span style="opacity:0.5;margin-left:4px" x-text="h.quantity.toLocaleString()+'주'"></span>
-                      </span>
-                      <span>
-                        <span x-text="fmt(h.market_value)"></span>
-                        <span style="margin-left:6px;font-size:0.9em" :class="h.gain_loss >= 0 ? 'amount-income' : 'amount-expense'"
-                              x-text="(h.gain_loss>=0?'+':'') + h.gain_loss_pct + '%'"></span>
-                      </span>
+          <!-- Per-person stock summary, split by cash/pension -->
+          <template x-for="section in [{type:'cash',label:'현금성'},{type:'pension',label:'연금성'}]" :key="section.type">
+            <template x-if="stocksSectionAccounts(section.type).length > 0">
+              <div>
+                <h3 style="margin:16px 0 8px;display:flex;justify-content:space-between;align-items:baseline">
+                  <span x-text="'주식 — ' + section.label"></span>
+                  <span style="font-size:16px;font-weight:600" x-text="fmt(stocksSectionTotal(section.type))"></span>
+                </h3>
+                <template x-for="person in assetSummary.stocks_by_person || []" :key="person.id">
+                  <template x-if="person.accounts.filter(a=>a.account_type===(section.type)).length > 0">
+                    <div class="card" style="margin-bottom:10px">
+                      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+                        <h3 style="margin:0" x-text="person.name"></h3>
+                        <span style="font-size:18px;font-weight:600" x-text="fmt(person.accounts.filter(a=>a.account_type===section.type).reduce((s,a)=>s+a.total_value,0))"></span>
+                      </div>
+                      <template x-for="bgroup in groupByBrokerage(person.accounts.filter(a=>a.account_type===section.type))" :key="bgroup.brokerage">
+                        <div style="margin-bottom:10px">
+                          <div style="font-size:0.85em;color:var(--text-muted);margin-bottom:4px" x-text="bgroup.brokerage"></div>
+                          <template x-for="acct in bgroup.accounts" :key="acct.id">
+                            <div style="margin-bottom:6px;padding:8px;border-radius:8px;background:var(--accent-bg,rgba(255,255,255,0.03))">
+                              <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-weight:500">
+                                <span x-text="acct.name"></span>
+                                <span x-text="fmt(acct.total_value)"></span>
+                              </div>
+                              <template x-for="h in acct.holdings" :key="h.id">
+                                <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.88em">
+                                  <span>
+                                    <span x-text="h.name"></span>
+                                    <span style="opacity:0.5;margin-left:4px" x-text="h.quantity.toLocaleString()+'주'"></span>
+                                  </span>
+                                  <span>
+                                    <span x-text="fmt(h.market_value)"></span>
+                                    <span style="margin-left:6px;font-size:0.9em" :class="h.gain_loss >= 0 ? 'amount-income' : 'amount-expense'"
+                                          x-text="(h.gain_loss>=0?'+':'') + h.gain_loss_pct + '%'"></span>
+                                  </span>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                        </div>
+                      </template>
                     </div>
                   </template>
-                </div>
-              </template>
-                </div>
-              </template>
-            </div>
+                </template>
+              </div>
+            </template>
           </template>
 
           <!-- Real estate summary -->
@@ -956,7 +971,7 @@
                       <span style="margin-left:8px;font-weight:500" x-text="fmt(acct.total_value)"></span>
                     </span>
                     <div style="display:flex;gap:4px">
-                      <button class="btn btn-sm btn-outline" @click="editingStockHolding={id:0,account_id:acct.id,ticker:'',name:'',quantity:0,avg_price:0}; showStockHoldingModal=true">+ 종목</button>
+                      <button class="btn btn-sm btn-outline" @click="editingStockHolding={id:0,account_id:acct.id,ticker:'',name:'',quantity:0,avg_price:0,is_foreign:false,exchange:'O'}; showStockHoldingModal=true">+ 종목</button>
                       <button class="btn btn-sm btn-outline" @click="editingStockAccount={...acct, person_id:person.id}; showStockAccountModal=true">수정</button>
                       <button class="btn btn-sm btn-danger" @click="if(confirm(acct.name+' 삭제?')) deleteStockAccount(acct.id)">삭제</button>
                     </div>
@@ -965,10 +980,11 @@
                     예수금 (<span x-text="acct.linked_account_name || '연결계정'"></span>): <strong x-text="fmt(acct.cash_balance)"></strong>
                   </div>
                   <table x-show="acct.holdings.length">
-                    <thead><tr><th>종목</th><th class="amount">수량</th><th class="amount">평단가</th><th class="amount">현재가</th><th class="amount">평가액</th><th class="amount">손익</th><th></th></tr></thead>
-                    <tbody>
+                    <thead><tr><th style="width:24px"></th><th>종목</th><th class="amount">수량</th><th class="amount">평단가</th><th class="amount">현재가</th><th class="amount">평가액</th><th class="amount">손익</th><th></th></tr></thead>
+                    <tbody :id="'holdings-'+acct.id" x-init="$nextTick(()=>initHoldingSortable($el, acct.id))">
                       <template x-for="h in acct.holdings" :key="h.id">
-                        <tr>
+                        <tr :data-id="h.id">
+                          <td class="dnd-handle" style="cursor:grab;text-align:center;opacity:0.4">⠿</td>
                           <td><span x-text="h.name"></span><br><small style="opacity:0.6" x-text="h.ticker"></small></td>
                           <td class="amount" x-text="h.quantity.toLocaleString()"></td>
                           <td class="amount" x-text="fmt(h.avg_price)"></td>
@@ -978,7 +994,7 @@
                               x-text="(h.gain_loss>=0?'+':'') + fmt(h.gain_loss) + ' (' + h.gain_loss_pct + '%)'"></td>
                           <td style="white-space:nowrap">
                             <button class="btn btn-sm btn-outline" @click="sellingStockHolding={...h, sell_quantity:h.quantity, sell_price:h.current_price||h.avg_price, fee:0}; showStockSellModal=true">매도</button>
-                            <button class="btn btn-sm btn-outline" @click="editingStockHolding={...h}; showStockHoldingModal=true">수정</button>
+                            <button class="btn btn-sm btn-outline" @click="editingStockHolding={...h, is_foreign:!!h.exchange, exchange:h.exchange||'O'}; showStockHoldingModal=true">수정</button>
                             <button class="btn btn-sm btn-danger" @click="if(confirm(h.name+' 삭제?')) deleteStockHolding(h.id)">삭제</button>
                           </td>
                         </tr>
@@ -1069,8 +1085,18 @@
     <div class="modal-bg" @click.self>
       <div class="modal" @keydown.enter.prevent="saveStockHolding()">
         <h2 x-text="editingStockHolding.id ? '종목 수정' : '종목 추가'"></h2>
-        <div class="form-group"><label>종목코드</label><input type="text" x-model="editingStockHolding.ticker" placeholder="005930" @blur="lookupTicker()"></div>
-        <div class="form-group"><label>종목명</label><input type="text" x-model="editingStockHolding.name" placeholder="삼성전자"></div>
+        <div class="form-group" style="display:flex;gap:12px;align-items:center">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+            <input type="checkbox" x-model="editingStockHolding.is_foreign"> 해외주식
+          </label>
+          <select x-show="editingStockHolding.is_foreign" x-model="editingStockHolding.exchange" style="width:auto">
+            <option value="O">나스닥</option>
+            <option value="N">뉴욕(NYSE)</option>
+            <option value="A">아멕스</option>
+          </select>
+        </div>
+        <div class="form-group"><label>종목코드</label><input type="text" x-model="editingStockHolding.ticker" :placeholder="editingStockHolding.is_foreign ? 'AAPL' : '005930'" @blur="lookupTicker()"></div>
+        <div class="form-group"><label>종목명</label><input type="text" x-model="editingStockHolding.name" :placeholder="editingStockHolding.is_foreign ? 'Apple Inc' : '삼성전자'"></div>
         <div class="form-group"><label>수량</label><input type="text" inputmode="numeric"
             :value="editingStockHolding.quantity ? editingStockHolding.quantity.toLocaleString() : ''"
             @input="editingStockHolding.quantity = Number($event.target.value.replace(/,/g,'')) || 0"></div>

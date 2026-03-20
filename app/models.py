@@ -158,7 +158,7 @@ class StockAccount(Base):
     created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
 
     person = relationship("StockPerson", back_populates="accounts")
-    holdings = relationship("StockHolding", back_populates="account", cascade="all, delete-orphan")
+    holdings = relationship("StockHolding", back_populates="account", cascade="all, delete-orphan", order_by="StockHolding.sort_order")
     linked_account = relationship("Account", foreign_keys=[linked_account_id])
 
 
@@ -169,9 +169,11 @@ class StockHolding(Base):
     account_id = Column(Integer, ForeignKey("stock_accounts.id", ondelete="CASCADE"), nullable=False)
     ticker = Column(Text, nullable=False)
     name = Column(Text, nullable=False)
+    exchange = Column(Text, nullable=True)  # O=NASDAQ, N=NYSE, A=AMEX, null=KRX
     quantity = Column(Integer, nullable=False, default=0)
     avg_price = Column(Integer, nullable=False, default=0)
     current_price = Column(Integer, nullable=False, default=0)
+    sort_order = Column(Integer, nullable=False, default=0)
     price_updated_at = Column(Text, nullable=True)
     created_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
 

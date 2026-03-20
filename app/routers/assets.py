@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,7 +16,7 @@ from app.schemas import (
     RealEstateCreate, RealEstateUpdate, RealEstateOut,
     AssetSummaryOut,
 )
-from app.services.stock_price import fetch_prices, lookup_ticker
+from app.services.stock_price import fetch_price, fetch_prices, lookup_ticker
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 log = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def _holding_to_out(h: StockHolding) -> dict:
     gl_pct = (gl / cost * 100) if cost else 0.0
     return {
         "id": h.id, "account_id": h.account_id,
-        "ticker": h.ticker, "name": h.name,
+        "ticker": h.ticker, "name": h.name, "exchange": h.exchange,
         "quantity": h.quantity, "avg_price": h.avg_price,
         "current_price": h.current_price,
         "market_value": mv, "gain_loss": gl,
@@ -161,19 +161,29 @@ def delete_account(aid: int, db: Session = Depends(get_db)):
 
 # ── Ticker Lookup ──
 @router.get("/stock/lookup/{ticker}")
-def stock_lookup(ticker: str):
-    result = lookup_ticker(ticker)
+def stock_lookup(ticker: str, exchange: str | None = None):
+    result = lookup_ticker(ticker, exchange)
     if not result:
         raise HTTPException(404, "종목을 찾을 수 없습니다")
     return result
 
 
 # ── Stock Holdings ──
+@router.put("/stock/holdings/reorder")
+def reorder_holdings(data: list[dict] = Body(...), db: Session = Depends(get_db)):
+    for item in data:
+        h = db.query(StockHolding).get(item["id"])
+        if h:
+            h.sort_order = item.get("sort_order", 0)
+    db.commit()
+    return {"ok": True}
+
+
 @router.post("/stock/holdings")
 def create_holding(data: StockHoldingCreate, db: Session = Depends(get_db)):
     h = StockHolding(
         account_id=data.account_id, ticker=data.ticker, name=data.name,
-        quantity=data.quantity, avg_price=data.avg_price,
+        exchange=data.exchange, quantity=data.quantity, avg_price=data.avg_price,
     )
     db.add(h)
     db.flush()
@@ -203,6 +213,8 @@ def update_holding(hid: int, data: StockHoldingUpdate, db: Session = Depends(get
         h.ticker = data.ticker
     if data.name is not None:
         h.name = data.name
+    if data.exchange is not None:
+        h.exchange = data.exchange
     if data.quantity is not None:
         h.quantity = data.quantity
     if data.avg_price is not None:
@@ -285,19 +297,35 @@ def sell_holding(data: StockHoldingSell, db: Session = Depends(get_db)):
 # ── Refresh Prices ──
 @router.post("/stock/refresh-prices")
 def refresh_prices(db: Session = Depends(get_db)):
+    import time
     holdings = db.query(StockHolding).filter(StockHolding.quantity > 0).all()
-    tickers = list({h.ticker for h in holdings})
-    if not tickers:
+    if not holdings:
         return {"updated": 0}
 
-    prices = fetch_prices(tickers)
+    # Split domestic vs foreign
+    domestic = [h for h in holdings if not h.exchange]
+    foreign = [h for h in holdings if h.exchange]
+
+    # Batch fetch domestic
+    domestic_tickers = list({h.ticker for h in domestic})
+    prices = fetch_prices(domestic_tickers) if domestic_tickers else {}
+
     now = datetime.now().isoformat()
     updated = 0
-    for h in holdings:
+    for h in domestic:
         if h.ticker in prices:
             h.current_price = prices[h.ticker]
             h.price_updated_at = now
             updated += 1
+
+    # Fetch foreign one by one (different exchange per ticker)
+    for h in foreign:
+        price = fetch_price(h.ticker, h.exchange)
+        if price is not None:
+            h.current_price = price
+            h.price_updated_at = now
+            updated += 1
+        time.sleep(0.2)
     db.commit()
     log.info("Refreshed %d/%d stock prices", updated, len(holdings))
     return {"updated": updated}

@@ -195,12 +195,14 @@ class StockHoldingCreate(BaseModel):
     account_id: int
     ticker: str
     name: str
+    exchange: str | None = None
     quantity: int
     avg_price: int
 
 class StockHoldingUpdate(BaseModel):
     ticker: str | None = None
     name: str | None = None
+    exchange: str | None = None
     quantity: int | None = None
     avg_price: int | None = None
 
