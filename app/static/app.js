@@ -338,7 +338,7 @@ function app() {
         const items = [];
         const addNode = (node, depth) => {
           const children = all.filter(a => a.parent_id === node.id);
-          children.sort((a, b) => a.code.localeCompare(b.code));
+          children.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.code.localeCompare(b.code));
           if (node.is_group) {
             // Group header (non-selectable)
             items.push({ id: 'g_' + node.id, name: node.name, isHeader: true, depth });
@@ -348,7 +348,7 @@ function app() {
           }
         };
         const roots = all.filter(a => !a.parent_id || !byId[a.parent_id] || byId[a.parent_id].type !== type);
-        roots.sort((a, b) => a.code.localeCompare(b.code));
+        roots.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.code.localeCompare(b.code));
         for (const r of roots) addNode(r, 0);
         result.push({ type, label: this.accountTypeLabel(type), items });
       }
