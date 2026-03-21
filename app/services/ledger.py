@@ -17,8 +17,8 @@ log = logging.getLogger(__name__)
 # Source priority: higher = better quality (keep this one)
 _SOURCE_PRIORITY = {
     "카드": 3,      # 카드사 알림 (신한카드, KB국민카드 등)
-    "카카오톡": 2,
-    "카카오페이": 1,
+    "카카오페이": 2,
+    "카카오톡": 1,
 }
 _DUPLICATE_WINDOW_MS = 10 * 60 * 1000  # 10분
 
