@@ -15,6 +15,8 @@ function app() {
       { id: 'tropical', name: 'Tropical', icon: '🌺', dark: false },
       { id: 'blossom', name: 'Blossom', icon: '🌸', dark: false },
       { id: 'midnight', name: 'Midnight', icon: '🌑', dark: true },
+      { id: 'amber-blue', name: 'Amber Blue', icon: '🍯', dark: false },
+      { id: 'ember', name: 'Ember', icon: '🔥', dark: true },
     ],
     sidebarOpen: localStorage.getItem('sidebar') !== 'collapsed',
     groupColors: JSON.parse(localStorage.getItem('groupColors') || '{}'),
@@ -39,6 +41,11 @@ function app() {
     filterCreditIds: [],
     showFilterPanel: false,
     filterOpenTypes: {},
+    filterShowAllDebit: false,
+    filterShowAllCredit: false,
+    txnGroupFilter: {},  // separate group filter for transaction list
+    bookmarkedDebitIds: JSON.parse(localStorage.getItem('bookmarkedDebitIds') || '[]'),
+    bookmarkedCreditIds: JSON.parse(localStorage.getItem('bookmarkedCreditIds') || '[]'),
     _lastConfirmed: null,
 
     // Accounts
@@ -294,6 +301,7 @@ function app() {
         if (grouped[type]) this.allAccounts.push(...grouped[type]);
       }
       this.initGroupFilter();
+      this.initTxnGroupFilter();
     },
 
     async saveEntry() {
@@ -445,6 +453,52 @@ function app() {
       return ids.some(id => this.acctGroupFilter[id] !== false);
     },
 
+    initTxnGroupFilter() {
+      const all = this.allAccounts.filter(a => a.is_group);
+      const updated = { ...this.txnGroupFilter };
+      let changed = false;
+      for (const g of all) {
+        if (!(g.id in updated)) { updated[g.id] = true; changed = true; }
+      }
+      if (changed) this.txnGroupFilter = updated;
+    },
+
+    toggleTxnGroupFilter(ids) {
+      const newVal = !this.txnGroupFilter[ids[0]];
+      const updated = { ...this.txnGroupFilter };
+      for (const id of ids) updated[id] = newVal;
+      this.txnGroupFilter = updated;
+    },
+
+    isTxnGroupVisible(groupId) {
+      return this.txnGroupFilter[groupId] !== false;
+    },
+
+    isTxnGroupNameVisible(ids) {
+      return ids.some(id => this.txnGroupFilter[id] !== false);
+    },
+
+    toggleBookmark(side, id) {
+      const arr = side === 'debit' ? this.bookmarkedDebitIds : this.bookmarkedCreditIds;
+      const key = side === 'debit' ? 'bookmarkedDebitIds' : 'bookmarkedCreditIds';
+      const idx = arr.indexOf(id);
+      if (idx >= 0) arr.splice(idx, 1); else arr.push(id);
+      localStorage.setItem(key, JSON.stringify(arr));
+    },
+
+    isBookmarked(side, id) {
+      return (side === 'debit' ? this.bookmarkedDebitIds : this.bookmarkedCreditIds).includes(id);
+    },
+
+    bookmarkedAccounts(side) {
+      const ids = side === 'debit' ? this.bookmarkedDebitIds : this.bookmarkedCreditIds;
+      return this.allAccounts.filter(a => {
+        if (a.is_group || !ids.includes(a.id)) return false;
+        if (a.parent_id && !this.isTxnGroupVisible(a.parent_id)) return false;
+        return true;
+      }).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    },
+
     allGroupedAccounts() {
       const typeOrder = ['expense', 'income', 'asset', 'liability', 'equity'];
       const result = [];
@@ -456,8 +510,8 @@ function app() {
         const groupMap = {};
         for (const a of accts) {
           const pid = a.parent_id || 0;
-          // Filter: ungrouped (no parent) always shown; grouped shown only if group is checked
-          if (pid && !this.isGroupVisible(pid)) continue;
+          // Filter: ungrouped (no parent) always shown; grouped shown only if txn group is checked
+          if (pid && !this.isTxnGroupVisible(pid)) continue;
           if (!groupMap[pid]) {
             const parent = pid ? this.allAccounts.find(p => p.id === pid) : null;
             groupMap[pid] = { label: parent ? parent.name : null, accounts: [], sort: parent ? parent.sort_order : 99999 };
