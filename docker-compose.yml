@@ -7,6 +7,8 @@ services:
       - "8000:8000"
     volumes:
       - noti-data:/data
+    environment:
+      - TZ=Asia/Seoul
     env_file:
       - .env
 

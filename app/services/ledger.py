@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -12,6 +12,13 @@ from app.models import (
 from app.services.ai_parser import parse_message
 
 log = logging.getLogger(__name__)
+
+_KST = timezone(timedelta(hours=9))
+
+
+def _msg_created_at(msg: "RawMessage") -> str:
+    """Convert message epoch millis timestamp to KST ISO string."""
+    return datetime.fromtimestamp(msg.timestamp / 1000, tz=_KST).strftime("%Y-%m-%dT%H:%M:%S")
 
 # ── Duplicate detection ──
 # Source priority: higher = better quality (keep this one)
@@ -291,10 +298,12 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
     entries = []
 
     # Entry 1: 차변 비용 / 대변 온통대전(충전액)
+    msg_time = _msg_created_at(msg)
     e1 = JournalEntry(
         entry_date=entry_date, description=merchant,
         memo="온통대전 체크카드",
         raw_message_id=msg.id, source="webhook", is_confirmed=0,
+        created_at=msg_time,
     )
     db.add(e1)
     db.flush()
@@ -308,6 +317,7 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
             entry_date=entry_date, description=f"캐시백 - {merchant}",
             memo="온통대전 캐시백적립",
             raw_message_id=msg.id, source="webhook", is_confirmed=0,
+            created_at=msg_time,
         )
         db.add(e2)
         db.flush()
@@ -365,11 +375,12 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
             return None
 
         entry = JournalEntry(
-            entry_date=datetime.fromtimestamp(msg.timestamp / 1000).strftime("%Y-%m-%d"),
+            entry_date=datetime.fromtimestamp(msg.timestamp / 1000, tz=_KST).strftime("%Y-%m-%d"),
             description=f"{rule.merchant_pattern} ({msg.source_name})",
             raw_message_id=msg.id,
             source="webhook",
             is_confirmed=0,
+            created_at=_msg_created_at(msg),
         )
         db.add(entry)
         db.flush()
@@ -433,7 +444,7 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
     # Determine entry date
     entry_date = parsed.get("date")
     if not entry_date:
-        entry_date = datetime.fromtimestamp(msg.timestamp / 1000).strftime("%Y-%m-%d")
+        entry_date = datetime.fromtimestamp(msg.timestamp / 1000, tz=_KST).strftime("%Y-%m-%d")
 
     merchant = parsed.get("merchant", "")
     description = merchant if merchant else msg.source_name
@@ -445,6 +456,7 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
         raw_message_id=msg.id,
         source="webhook",
         is_confirmed=0,
+        created_at=_msg_created_at(msg),
     )
     db.add(entry)
     db.flush()
