@@ -432,7 +432,7 @@
                 <template x-for="e in entries" :key="e.id">
                   <tr @click="selectedEntryId = selectedEntryId === e.id ? null : e.id"
                       :class="{'row-selected': selectedEntryId === e.id}" style="cursor:pointer">
-                    <td x-text="fmtDate(e.entry_date)"></td>
+                    <td><span x-text="fmtDate(e.entry_date)"></span><br><span style="font-size:11px;color:var(--text-muted)" x-text="fmtTime(e.created_at)"></span></td>
                     <td class="td-desc">
                       <div x-text="e.description" :title="e.description" class="td-desc-text"></div>
                       <div class="mobile-only" x-show="selectedEntryId === e.id" @click.stop
