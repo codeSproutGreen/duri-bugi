@@ -1184,7 +1184,7 @@
               <span class="tag" :class="'tag-'+m.status" x-text="m.status" style="margin-left:8px"></span>
             </div>
             <div style="display:flex;gap:6px;align-items:center">
-              <span style="font-size:12px;color:var(--text-muted)" x-text="fmtTime(m.timestamp)"></span>
+              <span style="font-size:12px;color:var(--text-muted)" x-text="fmtTimestamp(m.timestamp)"></span>
               <button class="btn btn-sm btn-outline" @click="reparseMsg(m.id)">재파싱</button>
             </div>
           </div>

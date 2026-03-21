@@ -1152,10 +1152,17 @@ function app() {
       return n.toLocaleString('ko-KR') + '원';
     },
 
-    fmtTime(ts) {
+    fmtTimestamp(ts) {
       return new Date(ts).toLocaleString('ko-KR', {
         month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
       });
+    },
+    fmtTime(dt) {
+      // "2026-03-16T14:30:00" → "14:30"
+      if (!dt) return '';
+      const t = dt.indexOf('T');
+      if (t < 0) return '';
+      return dt.slice(t + 1, t + 6);
     },
 
     groupedAccounts(type) {
@@ -1193,13 +1200,6 @@ function app() {
       if (!d) return '';
       if (window.innerWidth <= 768) return d.slice(5).replace('-', '/');
       return d;
-    },
-    fmtTime(dt) {
-      // "2026-03-16T14:30:00" → "14:30"
-      if (!dt) return '';
-      const t = dt.indexOf('T');
-      if (t < 0) return '';
-      return dt.slice(t + 1, t + 6);
     },
     typeLabel(t) {
       return { asset: '자산', liability: '부채', equity: '자본', income: '수입', expense: '비용' }[t] || t;
