@@ -47,7 +47,7 @@ class RawMessage(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'parsed', 'approved', 'rejected', 'failed')",
+            "status IN ('pending', 'parsed', 'approved', 'rejected', 'failed', 'duplicate')",
             name="ck_message_status",
         ),
         Index("idx_raw_messages_status", "status"),

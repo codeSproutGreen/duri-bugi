@@ -1274,7 +1274,7 @@
 
 <!-- Edit Entry Modal -->
 <div class="modal-bg" x-show="showEditModal" x-cloak @click.self>
-    <div class="modal" @keydown.enter.prevent="saveEntry()">
+    <div class="modal" @keydown.enter="if($event.shiftKey||$event.ctrlKey)return;$event.preventDefault();saveEntry()">
       <h2 x-text="editingEntry.id ? '거래 수정' : '수동 입력'"></h2>
       <div class="form-group">
         <label>날짜</label>

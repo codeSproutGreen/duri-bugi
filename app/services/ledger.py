@@ -13,6 +13,113 @@ from app.services.ai_parser import parse_message
 
 log = logging.getLogger(__name__)
 
+# ── Duplicate detection ──
+# Source priority: higher = better quality (keep this one)
+_SOURCE_PRIORITY = {
+    "카드": 3,      # 카드사 알림 (신한카드, KB국민카드 등)
+    "카카오톡": 2,
+    "카카오페이": 1,
+}
+_DUPLICATE_WINDOW_MS = 10 * 60 * 1000  # 10분
+
+
+def _source_priority(source_name: str) -> int:
+    """Return priority for a notification source. Higher = better quality."""
+    for keyword, priority in _SOURCE_PRIORITY.items():
+        if keyword in source_name:
+            return priority
+    return 0
+
+
+def _check_duplicate(db: Session, msg: RawMessage, amount: int) -> bool:
+    """Check for duplicate transaction within time window.
+
+    If a duplicate is found, mark the lower-priority one as 'duplicate'
+    and delete its journal entries. Returns True if THIS message should
+    be skipped (it's the lower-priority duplicate).
+    """
+    window_start = msg.timestamp - _DUPLICATE_WINDOW_MS
+    window_end = msg.timestamp + _DUPLICATE_WINDOW_MS
+
+    # Find recent parsed messages in the time window (not already duplicate/failed)
+    candidates = db.query(RawMessage).filter(
+        RawMessage.id != msg.id,
+        RawMessage.status.in_(["parsed", "approved"]),
+        RawMessage.timestamp >= window_start,
+        RawMessage.timestamp <= window_end,
+    ).all()
+
+    my_priority = _source_priority(msg.source_name)
+
+    for candidate in candidates:
+        # Check if amount matches by inspecting ai_result or journal entries
+        candidate_amount = _extract_amount(db, candidate)
+        if candidate_amount is None or candidate_amount != amount:
+            continue
+
+        # Found a match — compare priorities
+        other_priority = _source_priority(candidate.source_name)
+
+        if my_priority <= other_priority:
+            # This message is lower or equal priority → skip it
+            msg.status = "duplicate"
+            msg.ai_result = json.dumps({
+                "duplicate_of": candidate.id,
+                "reason": f"같은 금액({amount}원) 중복 알림 — {candidate.source_name} 우선",
+            }, ensure_ascii=False)
+            db.commit()
+            log.info("Duplicate: msg %d (%s) → duplicate of msg %d (%s), amount=%d",
+                     msg.id, msg.source_name, candidate.id, candidate.source_name, amount)
+            return True
+        else:
+            # This message is higher priority → replace the other one
+            _mark_as_duplicate(db, candidate, msg.id, amount)
+            log.info("Duplicate: msg %d (%s) replaced by msg %d (%s), amount=%d",
+                     candidate.id, candidate.source_name, msg.id, msg.source_name, amount)
+            return False
+
+    return False
+
+
+def _extract_amount(db: Session, msg: RawMessage) -> int | None:
+    """Extract transaction amount from a processed message."""
+    if msg.ai_result:
+        try:
+            result = json.loads(msg.ai_result)
+            amt = result.get("amount")
+            if amt:
+                return int(amt)
+        except (json.JSONDecodeError, ValueError):
+            pass
+    # Fallback: check journal entry lines
+    entry = db.query(JournalEntry).filter(
+        JournalEntry.raw_message_id == msg.id
+    ).first()
+    if entry and entry.lines:
+        debit_line = next((l for l in entry.lines if l.debit > 0), None)
+        if debit_line:
+            return debit_line.debit
+    return None
+
+
+def _mark_as_duplicate(db: Session, msg: RawMessage, replaced_by_id: int, amount: int):
+    """Mark a message as duplicate and delete its journal entries."""
+    # Delete associated journal entries
+    entries = db.query(JournalEntry).filter(
+        JournalEntry.raw_message_id == msg.id,
+        JournalEntry.is_confirmed == 0,  # Only remove unconfirmed
+    ).all()
+    for entry in entries:
+        db.query(JournalLine).filter(JournalLine.entry_id == entry.id).delete()
+        db.delete(entry)
+
+    msg.status = "duplicate"
+    msg.ai_result = json.dumps({
+        "duplicate_of": replaced_by_id,
+        "reason": f"같은 금액({amount}원) 중복 알림 — 더 높은 우선순위 소스로 교체됨",
+    }, ensure_ascii=False)
+    db.commit()
+
 # 온통대전 SMS 패턴
 _ONTONG_RE = re.compile(
     r'온통대전\s*체크카드.*?승인\s*([\d,]+)\s*원\s*캐시백적립\s*([\d,]+)\s*원\s*'
@@ -216,6 +323,11 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
         "cashback_account": cashback_acct.code if cashback_acct else None,
     }, ensure_ascii=False)
     db.commit()
+
+    # Duplicate check after commit (so ai_result with amount is saved)
+    if _check_duplicate(db, msg, amount):
+        return None
+
     log.info("온통대전: %s %d원, 캐시백 %d원 → %d entries (device=%s)",
              merchant, amount, cashback, len(entries), device_name)
     return entries
@@ -247,6 +359,11 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
             db.commit()
             return None
 
+        # Duplicate check before creating entry
+        msg.ai_result = json.dumps({"source": "rule", "rule_id": rule.id, "amount": amount}, ensure_ascii=False)
+        if _check_duplicate(db, msg, amount):
+            return None
+
         entry = JournalEntry(
             entry_date=datetime.fromtimestamp(msg.timestamp / 1000).strftime("%Y-%m-%d"),
             description=f"{rule.merchant_pattern} ({msg.source_name})",
@@ -261,7 +378,6 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
         db.add(JournalLine(entry_id=entry.id, account_id=rule.credit_account_id, debit=0, credit=amount))
 
         msg.status = "parsed"
-        msg.ai_result = json.dumps({"source": "rule", "rule_id": rule.id, "amount": amount}, ensure_ascii=False)
         db.commit()
         return entry
 
@@ -292,6 +408,10 @@ def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
     if tx_type == "unknown":
         msg.status = "failed"
         db.commit()
+        return None
+
+    # Duplicate check before creating entry
+    if _check_duplicate(db, msg, amount):
         return None
 
     # Find accounts by code (AI now suggests specific codes)
