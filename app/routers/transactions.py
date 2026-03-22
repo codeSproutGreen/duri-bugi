@@ -187,6 +187,44 @@ def update_entry(entry_id: int, data: EntryUpdate, request: Request, db: Session
     return _entry_to_out(entry)
 
 
+@router.delete("/entries/{entry_id}/installment-group")
+def delete_installment_group(entry_id: int, request: Request, db: Session = Depends(get_db)):
+    """Delete all entries in the same installment group."""
+    import re
+    entry = db.query(JournalEntry).get(entry_id)
+    if not entry:
+        raise HTTPException(404, "Entry not found")
+
+    m = re.search(r"할부 \d+/(\d+)$", entry.memo)
+    if not m:
+        raise HTTPException(400, "Not an installment entry")
+
+    total = int(m.group(1))
+    base_memo = entry.memo[:m.start()].rstrip(" /")
+
+    # Find all entries with same description and matching installment pattern
+    candidates = db.query(JournalEntry).filter(
+        JournalEntry.description == entry.description,
+        JournalEntry.memo.like(f"%할부 %/{total}"),
+    ).all()
+
+    deleted = 0
+    for e in candidates:
+        em = re.search(r"할부 (\d+)/(\d+)$", e.memo)
+        if not em or int(em.group(2)) != total:
+            continue
+        e_base = e.memo[:em.start()].rstrip(" /")
+        if e_base != base_memo:
+            continue
+        log_audit(db, "journal_entries", e.id, "delete",
+                 old_data=entry_to_dict(e), user=get_current_user(request))
+        db.delete(e)
+        deleted += 1
+
+    db.commit()
+    return {"status": "deleted", "count": deleted}
+
+
 @router.delete("/entries/{entry_id}")
 def delete_entry(entry_id: int, request: Request, db: Session = Depends(get_db)):
     entry = db.query(JournalEntry).get(entry_id)

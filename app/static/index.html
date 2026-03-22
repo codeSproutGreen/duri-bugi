@@ -283,7 +283,7 @@
             <div class="form-group">
               <label>메모</label>
               <textarea x-model="editingEntry.memo" placeholder="선택사항" rows="2"
-                        @keydown.enter.prevent="if($event.ctrlKey){editingEntry.memo+='\n'}else{quickSaveEntry()}"
+                        @keydown.enter.prevent="if($event.ctrlKey||$event.shiftKey){editingEntry.memo+='\n'}else{quickSaveEntry()}"
                         style="resize:vertical;min-height:36px"></textarea>
             </div>
 
@@ -531,6 +531,25 @@
           </div>
         </div>
       </div>
+
+      <!-- Delete confirm modal -->
+      <div x-show="deleteConfirmId" x-cloak
+           style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000"
+           @click.self="deleteConfirmId=null">
+        <div class="card" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);max-width:340px;width:90%;text-align:center;padding:24px;z-index:1001">
+          <p style="margin:0 0 16px;font-size:14px" x-text="deleteConfirmInstallment ? '할부 거래입니다. 어떻게 삭제할까요?' : '이 거래를 삭제하시겠습니까?'"></p>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <template x-if="deleteConfirmInstallment">
+              <button class="btn btn-danger" @click="doDelete('all')">전체 삭제</button>
+            </template>
+            <button class="btn btn-outline" style="border-color:var(--danger);color:var(--danger)" @click="doDelete('single')">
+              <span x-text="deleteConfirmInstallment ? '이 건만 삭제' : '삭제'"></span>
+            </button>
+            <button class="btn btn-outline" @click="deleteConfirmId=null">취소</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </template>
 

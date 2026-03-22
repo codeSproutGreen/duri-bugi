@@ -172,9 +172,24 @@ window.AppMixins.entries = {
     this.loadDashboard();
   },
 
-  async deleteEntry(id) {
-    if (!confirm('이 거래를 삭제하시겠습니까?')) return;
-    await this.del(`/entries/${id}`);
+  deleteConfirmId: null,
+  deleteConfirmInstallment: false,
+
+  deleteEntry(id) {
+    const entry = this.entries.find(e => e.id === id);
+    this.deleteConfirmId = id;
+    this.deleteConfirmInstallment = !!(entry && /할부 \d+\/\d+$/.test(entry.memo));
+  },
+
+  async doDelete(mode) {
+    const id = this.deleteConfirmId;
+    this.deleteConfirmId = null;
+    if (!id) return;
+    if (mode === 'all') {
+      await this.del(`/entries/${id}/installment-group`);
+    } else {
+      await this.del(`/entries/${id}`);
+    }
     this.loadEntries(1);
     this.loadDashboard();
   },
