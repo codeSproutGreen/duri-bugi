@@ -13,7 +13,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import settings
 from app.database import engine, SessionLocal, Base
 from app.models import Account
-from app.routers import webhook, messages, transactions, accounts, dashboard, rules, auth, assets
+from app.routers import webhook, messages, transactions, accounts, dashboard, rules, auth
+from app.routers.assets import stock_router, realestate_router, summary_router
 from app.routers.auth import verify_token, _pin_enabled
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -184,7 +185,9 @@ app.include_router(transactions.router)
 app.include_router(accounts.router)
 app.include_router(dashboard.router)
 app.include_router(rules.router)
-app.include_router(assets.router)
+app.include_router(stock_router)
+app.include_router(realestate_router)
+app.include_router(summary_router)
 
 # Serve frontend
 static_dir = Path(__file__).parent / "static"

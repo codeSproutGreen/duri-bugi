@@ -1,93 +1,26 @@
+"""Stock management — persons, accounts, holdings, sell, price refresh."""
+
 import logging
+import time
 from datetime import datetime
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import (
-    Account, JournalEntry, JournalLine,
-    StockPerson, StockAccount, StockHolding, RealEstate,
-)
-from app.services.ledger import get_account_balance
+from app.models import Account, StockAccount, StockHolding, StockPerson
 from app.schemas import (
-    StockPersonCreate, StockPersonOut, StockAccountCreate, StockAccountOut,
-    StockHoldingCreate, StockHoldingUpdate, StockHoldingSell, StockHoldingOut,
-    RealEstateCreate, RealEstateUpdate, RealEstateOut,
-    AssetSummaryOut,
+    StockPersonCreate, StockAccountCreate,
+    StockHoldingCreate, StockHoldingUpdate, StockHoldingSell,
 )
 from app.services.stock_price import fetch_price, fetch_prices, lookup_ticker
+from app.routers.assets._helpers import (
+    _holding_to_out, _account_to_out, _person_to_out,
+    _get_invest_accounts, _create_journal,
+)
 
-router = APIRouter(prefix="/api/assets", tags=["assets"])
+router = APIRouter(prefix="/api/assets", tags=["assets-stock"])
 log = logging.getLogger(__name__)
-
-
-def _holding_to_out(h: StockHolding) -> dict:
-    mv = h.quantity * h.current_price
-    cost = h.quantity * h.avg_price
-    gl = mv - cost
-    gl_pct = (gl / cost * 100) if cost else 0.0
-    return {
-        "id": h.id, "account_id": h.account_id,
-        "ticker": h.ticker, "name": h.name, "exchange": h.exchange,
-        "quantity": h.quantity, "avg_price": h.avg_price,
-        "current_price": h.current_price,
-        "market_value": mv, "gain_loss": gl,
-        "gain_loss_pct": round(gl_pct, 2),
-        "price_updated_at": h.price_updated_at,
-    }
-
-
-def _account_to_out(a: StockAccount, db: Session = None) -> dict:
-    holdings = [_holding_to_out(h) for h in a.holdings]
-    holdings_value = sum(h["market_value"] for h in holdings)
-    cash_balance = 0
-    linked_name = None
-    if a.linked_account_id and db:
-        cash_balance = get_account_balance(db, a.linked_account_id)
-        linked = db.query(Account).get(a.linked_account_id)
-        linked_name = linked.name if linked else None
-    return {
-        "id": a.id, "person_id": a.person_id,
-        "brokerage": a.brokerage or "", "name": a.name,
-        "account_type": a.account_type or "cash",
-        "linked_account_id": a.linked_account_id,
-        "linked_account_name": linked_name,
-        "cash_balance": cash_balance,
-        "holdings": holdings,
-        "total_value": holdings_value + cash_balance,
-    }
-
-
-def _person_to_out(p: StockPerson, db: Session = None) -> dict:
-    accounts = [_account_to_out(a, db) for a in p.accounts]
-    return {
-        "id": p.id, "name": p.name, "sort_order": p.sort_order,
-        "accounts": accounts,
-        "total_value": sum(a["total_value"] for a in accounts),
-    }
-
-
-def _get_invest_accounts(db: Session) -> tuple[Account | None, Account | None]:
-    """Return (투자자산, 투자손익) accounts."""
-    invest = db.query(Account).filter(Account.code == "1100").first()
-    gain_loss = db.query(Account).filter(Account.code == "4100").first()
-    return invest, gain_loss
-
-
-def _create_journal(db: Session, description: str, lines: list[tuple[int, int, int]]):
-    """Create a confirmed journal entry. lines = [(account_id, debit, credit), ...]"""
-    entry = JournalEntry(
-        entry_date=datetime.now().strftime("%Y-%m-%d"),
-        description=description,
-        source="asset",
-        is_confirmed=1,
-    )
-    db.add(entry)
-    db.flush()
-    for account_id, debit, credit in lines:
-        db.add(JournalLine(entry_id=entry.id, account_id=account_id, debit=debit, credit=credit))
-    return entry
 
 
 # ── Stock Persons ──
@@ -297,7 +230,6 @@ def sell_holding(data: StockHoldingSell, db: Session = Depends(get_db)):
 # ── Refresh Prices ──
 @router.post("/stock/refresh-prices")
 def refresh_prices(db: Session = Depends(get_db)):
-    import time
     holdings = db.query(StockHolding).filter(StockHolding.quantity > 0).all()
     if not holdings:
         return {"updated": 0}
@@ -329,99 +261,3 @@ def refresh_prices(db: Session = Depends(get_db)):
     db.commit()
     log.info("Refreshed %d/%d stock prices", updated, len(holdings))
     return {"updated": updated}
-
-
-# ── Real Estate ──
-@router.get("/realestate")
-def list_realestate(db: Session = Depends(get_db)):
-    items = db.query(RealEstate).order_by(RealEstate.sort_order, RealEstate.id).all()
-    return [{"id": r.id, "name": r.name, "value": r.value, "memo": r.memo, "updated_at": r.updated_at} for r in items]
-
-
-@router.post("/realestate")
-def create_realestate(data: RealEstateCreate, db: Session = Depends(get_db)):
-    r = RealEstate(name=data.name, value=data.value, memo=data.memo)
-    db.add(r)
-    db.commit()
-    db.refresh(r)
-    return {"id": r.id, "name": r.name, "value": r.value, "memo": r.memo, "updated_at": r.updated_at}
-
-
-@router.put("/realestate/{rid}")
-def update_realestate(rid: int, data: RealEstateUpdate, db: Session = Depends(get_db)):
-    r = db.query(RealEstate).get(rid)
-    if not r:
-        raise HTTPException(404)
-    if data.name is not None:
-        r.name = data.name
-    if data.value is not None:
-        r.value = data.value
-    if data.memo is not None:
-        r.memo = data.memo
-    r.updated_at = datetime.now().isoformat()
-    db.commit()
-    return {"id": r.id, "name": r.name, "value": r.value, "memo": r.memo, "updated_at": r.updated_at}
-
-
-@router.delete("/realestate/{rid}")
-def delete_realestate(rid: int, db: Session = Depends(get_db)):
-    r = db.query(RealEstate).get(rid)
-    if not r:
-        raise HTTPException(404)
-    db.delete(r)
-    db.commit()
-    return {"ok": True}
-
-
-# ── Asset Summary ──
-@router.get("/summary")
-def asset_summary(db: Session = Depends(get_db)):
-    # Cash/bank from ledger (same logic as dashboard)
-    # Exclude accounts linked to stock accounts and investment tracking accounts
-    linked_ids = {
-        sa.linked_account_id
-        for sa in db.query(StockAccount).filter(StockAccount.linked_account_id.isnot(None)).all()
-    }
-    # 투자자산(1100) is tracked via asset management, not ledger summary
-    invest_acct = db.query(Account).filter(Account.code == "1100").first()
-    if invest_acct:
-        linked_ids.add(invest_acct.id)
-    cash_bank = 0
-    total_liability = 0
-    accounts = db.query(Account).filter(
-        Account.type.in_(["asset", "liability"]),
-    ).all()
-    for acct in accounts:
-        if acct.is_group:
-            continue
-        if acct.id in linked_ids:
-            continue  # counted under stock account's cash_balance
-        bal = get_account_balance(db, acct.id)
-        if acct.type == "asset":
-            cash_bank += bal
-        else:
-            total_liability += bal
-
-    # Stocks
-    persons = db.query(StockPerson).order_by(StockPerson.sort_order, StockPerson.id).all()
-    persons_out = [_person_to_out(p, db) for p in persons]
-    stocks_total = sum(p["total_value"] for p in persons_out)
-
-    # Real estate
-    re_items = db.query(RealEstate).order_by(RealEstate.sort_order, RealEstate.id).all()
-    re_out = [{"id": r.id, "name": r.name, "value": r.value, "memo": r.memo, "updated_at": r.updated_at} for r in re_items]
-    re_total = sum(r.value for r in re_items)
-
-    total_assets = cash_bank + stocks_total + re_total
-    net_worth = total_assets - total_liability
-
-    return {
-        "cash_bank": cash_bank,
-        "total_liability": total_liability,
-        "stocks_total": stocks_total,
-        "stocks_by_person": persons_out,
-        "realestate_total": re_total,
-        "realestate_items": re_out,
-        "total_assets": total_assets,
-        "net_worth": net_worth,
-    }
