@@ -13,6 +13,10 @@ window.AppMixins.report = {
   reportShowNetWorth: true,
   _chart: null,
   incExp: { expense: [], income: [], total_expense: 0, total_income: 0, net_income: 0 },
+  monthlyShowIncome: true,
+  monthlyShowExpense: true,
+  monthlyShowNet: true,
+  monthlyHover: null,
   tagList: [],
   tagSelectedTag: null,
   tagEntries: [],
@@ -21,9 +25,12 @@ window.AppMixins.report = {
 
   async loadReport() {
     this.reportData = await this.get(`/dashboard/trend?start=${this.reportStart}&end=${this.reportEnd}`);
-    this.monthly = await this.get('/dashboard/monthly?months=12');
+    this.monthly = await this.get(`/dashboard/monthly?months=24&start=${this.reportStart}&end=${this.reportEnd}`);
     this.incExp = await this.get(`/dashboard/income-expense?start=${this.reportStart}&end=${this.reportEnd}`);
-    this.$nextTick(() => this.drawChart());
+    this.$nextTick(() => {
+      this.drawChart();
+      this.drawMonthlyChart();
+    });
     if (this.reportTab === 'tags') this.loadTags();
   },
 
@@ -171,6 +178,189 @@ window.AppMixins.report = {
     for (let i = 0; i < d.length; i += step) result.push(d[i]);
     if (d.length > 0 && result[result.length - 1] !== d[d.length - 1]) result.push(d[d.length - 1]);
     return result;
+  },
+
+  monthlySummary() {
+    const data = [...this.monthly].reverse();
+    if (!data.length) return null;
+    const totalIncome = data.reduce((s, m) => s + m.income, 0);
+    const totalExpense = data.reduce((s, m) => s + m.expense, 0);
+    const net = totalIncome - totalExpense;
+    const profitRate = totalIncome ? Math.round((totalIncome - totalExpense) / totalIncome * 10000) / 100 : 0;
+    const months = data.length || 1;
+    // Calculate total days in the period
+    const s = new Date(this.reportStart);
+    const e = new Date(this.reportEnd);
+    const days = Math.max(1, Math.ceil((e - s) / 86400000) + 1);
+    const weeks = days / 7;
+    return {
+      total: { income: totalIncome, expense: totalExpense, net, profitRate },
+      monthly: { income: Math.round(totalIncome / months), expense: Math.round(totalExpense / months), net: Math.round(net / months) },
+      weekly: { income: Math.round(totalIncome / weeks), expense: Math.round(totalExpense / weeks), net: Math.round(net / weeks) },
+      daily: { income: Math.round(totalIncome / days), expense: Math.round(totalExpense / days), net: Math.round(net / days) },
+    };
+  },
+
+  drawMonthlyChart() {
+    const canvas = document.getElementById('monthly-chart');
+    if (!canvas || !this.monthly.length) return;
+    const data = [...this.monthly].reverse(); // chronological order
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height;
+    const pad = { top: 30, right: 20, bottom: 40, left: 70 };
+    const cw = W - pad.left - pad.right;
+    const ch = H - pad.top - pad.bottom;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '11px -apple-system, sans-serif';
+
+    // Compute max/min for scale
+    let maxVal = 0;
+    let minVal = 0;
+    for (const d of data) {
+      if (this.monthlyShowIncome) maxVal = Math.max(maxVal, d.income);
+      if (this.monthlyShowExpense) maxVal = Math.max(maxVal, d.expense);
+      const net = d.income - d.expense;
+      if (this.monthlyShowNet) { maxVal = Math.max(maxVal, net); minVal = Math.min(minVal, net); }
+    }
+    if (maxVal === 0 && minVal === 0) { maxVal = 1000; }
+    const range = maxVal - minVal;
+    maxVal += range * 0.15;
+    minVal -= range * 0.05;
+
+    const y = (v) => pad.top + ch - ((v - minVal) / (maxVal - minVal)) * ch;
+    const barGroupWidth = cw / data.length;
+    const barWidth = Math.min(barGroupWidth * 0.3, 40);
+    const barGap = 4;
+
+    // Grid lines
+    const style = getComputedStyle(document.documentElement);
+    const gridColor = style.getPropertyValue('--border').trim() || 'rgba(255,255,255,0.08)';
+    ctx.strokeStyle = gridColor;
+    ctx.lineWidth = 0.5;
+    const gridCount = 5;
+    for (let i = 0; i <= gridCount; i++) {
+      const gy = pad.top + (ch / gridCount) * i;
+      ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left + cw, gy); ctx.stroke();
+      const val = maxVal - ((maxVal - minVal) / gridCount) * i;
+      ctx.fillStyle = style.getPropertyValue('--text-muted').trim() || '#71717a';
+      ctx.textAlign = 'right';
+      const label = Math.abs(val) >= 10000 ? Math.round(val / 10000) + '만' : Math.round(val).toLocaleString();
+      ctx.fillText(label, pad.left - 8, gy + 4);
+    }
+
+    // Zero line
+    if (minVal < 0) {
+      ctx.strokeStyle = style.getPropertyValue('--text-muted').trim() || '#71717a';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      const zy = y(0);
+      ctx.beginPath(); ctx.moveTo(pad.left, zy); ctx.lineTo(pad.left + cw, zy); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // X labels
+    ctx.fillStyle = style.getPropertyValue('--text-muted').trim() || '#71717a';
+    ctx.textAlign = 'center';
+    for (let i = 0; i < data.length; i++) {
+      const cx = pad.left + barGroupWidth * i + barGroupWidth / 2;
+      ctx.fillText(data[i].month, cx, H - pad.bottom + 16);
+    }
+
+    // Theme colors
+    const incomeColor = style.getPropertyValue('--income').trim() || '#84cc16';
+    const expenseColor = style.getPropertyValue('--expense').trim() || '#f97316';
+    const netColor = style.getPropertyValue('--primary').trim() || '#a3a310';
+
+    // Bars
+    const zeroY = y(0);
+    for (let i = 0; i < data.length; i++) {
+      const cx = pad.left + barGroupWidth * i + barGroupWidth / 2;
+      if (this.monthlyShowIncome) {
+        const bh = zeroY - y(data[i].income);
+        ctx.fillStyle = incomeColor;
+        ctx.fillRect(cx - barWidth - barGap / 2, zeroY - bh, barWidth, bh);
+        if (data[i].income > 0 && data.length <= 12) {
+          ctx.fillStyle = incomeColor;
+          ctx.textAlign = 'center';
+          ctx.font = '10px -apple-system, sans-serif';
+          const lbl = data[i].income >= 10000 ? (data[i].income / 10000).toFixed(0) + '만' : data[i].income.toLocaleString();
+          ctx.fillText(lbl, cx - barWidth / 2 - barGap / 2, zeroY - bh - 4);
+          ctx.font = '11px -apple-system, sans-serif';
+        }
+      }
+      if (this.monthlyShowExpense) {
+        const bh = zeroY - y(data[i].expense);
+        ctx.fillStyle = expenseColor;
+        ctx.fillRect(cx + barGap / 2, zeroY - bh, barWidth, bh);
+        if (data[i].expense > 0 && data.length <= 12) {
+          ctx.fillStyle = expenseColor;
+          ctx.textAlign = 'center';
+          ctx.font = '10px -apple-system, sans-serif';
+          const lbl = data[i].expense >= 10000 ? (data[i].expense / 10000).toFixed(0) + '만' : data[i].expense.toLocaleString();
+          ctx.fillText(lbl, cx + barWidth / 2 + barGap / 2, zeroY - bh - 4);
+          ctx.font = '11px -apple-system, sans-serif';
+        }
+      }
+    }
+
+    // Net income line
+    if (this.monthlyShowNet) {
+      ctx.strokeStyle = netColor;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < data.length; i++) {
+        const cx = pad.left + barGroupWidth * i + barGroupWidth / 2;
+        const net = data[i].income - data[i].expense;
+        const py = y(net);
+        i === 0 ? ctx.moveTo(cx, py) : ctx.lineTo(cx, py);
+      }
+      ctx.stroke();
+      ctx.fillStyle = netColor;
+      for (let i = 0; i < data.length; i++) {
+        const cx = pad.left + barGroupWidth * i + barGroupWidth / 2;
+        const net = data[i].income - data[i].expense;
+        const py = y(net);
+        ctx.beginPath();
+        ctx.arc(cx, py, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Hover detection
+    canvas._monthlyData = data;
+    canvas._barGroupWidth = barGroupWidth;
+    canvas._padLeft = pad.left;
+    if (!canvas._hoverBound) {
+      canvas._hoverBound = true;
+      const self = this;
+      canvas.addEventListener('mousemove', (e) => {
+        const r = canvas.getBoundingClientRect();
+        const mx = e.clientX - r.left;
+        const idx = Math.floor((mx - canvas._padLeft) / canvas._barGroupWidth);
+        const d = canvas._monthlyData;
+        if (idx >= 0 && idx < d.length) {
+          const net = d[idx].income - d[idx].expense;
+          const rate = d[idx].income ? Math.round((net / d[idx].income) * 10000) / 100 : 0;
+          self.monthlyHover = {
+            month: d[idx].month,
+            income: d[idx].income,
+            expense: d[idx].expense,
+            net, rate,
+            x: e.clientX - r.left,
+            y: e.clientY - r.top,
+          };
+        } else {
+          self.monthlyHover = null;
+        }
+      });
+      canvas.addEventListener('mouseleave', () => { self.monthlyHover = null; });
+    }
   },
 
   drawChart() {

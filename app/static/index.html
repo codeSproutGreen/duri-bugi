@@ -243,18 +243,22 @@
               </div>
               <div class="form-group">
                 <label>금액 <span style="font-weight:400;font-size:11px;color:var(--text-muted)">(할부: 금액/개월)</span></label>
-                <input type="text" inputmode="numeric"
-                       :value="editAmountRaw || (editAmount ? editAmount.toLocaleString() : '')"
+                <input type="text" inputmode="numeric" x-ref="amountInput"
+                       :value="editAmountRaw ? editAmountRaw.replace(/^[\d,]+/, m => Number(m.replace(/,/g,'')).toLocaleString()) : (editAmount ? editAmount.toLocaleString() : '')"
                        @input="(() => {
+                         const el = $refs.amountInput;
+                         const pos = el.selectionStart;
+                         const oldLen = el.value.length;
                          const v = $event.target.value;
                          if (v.includes('/')) {
-                           editAmountRaw = v;
+                           editAmountRaw = v.replace(/,/g,'');
                            const inst = parseInstallment(v);
                            editAmount = inst ? inst.total : 0;
                          } else {
                            editAmountRaw = '';
                            editAmount = Number(v.replace(/,/g,'')) || 0;
                          }
+                         $nextTick(() => { const diff = el.value.length - oldLen; el.setSelectionRange(pos + diff, pos + diff); });
                        })()"
                        @keydown.enter="quickSaveEntry()"
                        placeholder="15,000 또는 2000000/5">
@@ -738,7 +742,7 @@
       <div class="tabs">
         <div class="tab" :class="reportTab==='trend' && 'active'" @click="reportTab='trend'; $nextTick(()=>drawChart())">자산추이</div>
         <div class="tab" :class="reportTab==='ie' && 'active'" @click="reportTab='ie'">비용수익</div>
-        <div class="tab" :class="reportTab==='monthly' && 'active'" @click="reportTab='monthly'">월별</div>
+        <div class="tab" :class="reportTab==='monthly' && 'active'" @click="reportTab='monthly'; $nextTick(()=>drawMonthlyChart())">월별</div>
         <div class="tab" :class="reportTab==='tags' && 'active'" @click="reportTab='tags'; loadTags()">태그</div>
       </div>
 
@@ -850,10 +854,80 @@
 
       <!-- Tab: 월별 -->
       <template x-if="reportTab==='monthly'">
-        <div>
-          <div class="card" style="padding:0">
+        <div x-effect="monthlyShowIncome; monthlyShowExpense; monthlyShowNet; $nextTick(()=>drawMonthlyChart())">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin:0">
+              <input type="checkbox" x-model="monthlyShowIncome">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--income)"></span> 수익
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin:0">
+              <input type="checkbox" x-model="monthlyShowExpense">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--expense)"></span> 비용
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin:0">
+              <input type="checkbox" x-model="monthlyShowNet">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--primary)"></span> 당기순손익
+            </label>
+          </div>
+          <div class="card" style="position:relative">
+            <canvas id="monthly-chart" style="width:100%;height:350px"></canvas>
+            <div x-show="monthlyHover" x-cloak
+                 :style="'position:absolute;pointer-events:none;z-index:10;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15);left:'+((monthlyHover||{}).x||0)+'px;top:'+((monthlyHover||{}).y-90||0)+'px;transform:translateX(-50%)'">
+              <template x-if="monthlyHover">
+                <div>
+                  <div style="font-weight:700;margin-bottom:4px" x-text="monthlyHover.month"></div>
+                  <div><span style="color:var(--income)">수익</span> : <span x-text="fmt(monthlyHover.income)"></span></div>
+                  <div><span style="color:var(--expense)">비용</span> : <span x-text="fmt(monthlyHover.expense)"></span></div>
+                  <div>당기순손익 : <span :class="monthlyHover.net>=0?'amount-income':'amount-expense'" x-text="fmt(monthlyHover.net)"></span></div>
+                  <div>이익률 : <span x-text="monthlyHover.rate + '%'"></span></div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <template x-if="monthlySummary()">
+            <div class="card" style="padding:0;margin-top:12px">
+              <table>
+                <thead>
+                  <tr><th></th><th class="amount">수익</th><th class="amount">비용</th><th class="amount">당기순손익</th><th class="amount">이익률</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="font-weight:700">기간내합계</td>
+                    <td class="amount amount-income" x-text="fmt(monthlySummary().total.income)"></td>
+                    <td class="amount amount-expense" x-text="fmt(monthlySummary().total.expense)"></td>
+                    <td class="amount" :class="monthlySummary().total.net>=0?'amount-income':'amount-expense'" x-text="fmt(monthlySummary().total.net)"></td>
+                    <td class="amount" x-text="monthlySummary().total.profitRate + '%'"></td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:700">월간 평균</td>
+                    <td class="amount amount-income" x-text="fmt(monthlySummary().monthly.income)"></td>
+                    <td class="amount amount-expense" x-text="fmt(monthlySummary().monthly.expense)"></td>
+                    <td class="amount" :class="monthlySummary().monthly.net>=0?'amount-income':'amount-expense'" x-text="fmt(monthlySummary().monthly.net)"></td>
+                    <td class="amount" style="color:var(--text-muted)">.</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:700">주간 평균</td>
+                    <td class="amount amount-income" x-text="fmt(monthlySummary().weekly.income)"></td>
+                    <td class="amount amount-expense" x-text="fmt(monthlySummary().weekly.expense)"></td>
+                    <td class="amount" :class="monthlySummary().weekly.net>=0?'amount-income':'amount-expense'" x-text="fmt(monthlySummary().weekly.net)"></td>
+                    <td class="amount" style="color:var(--text-muted)">.</td>
+                  </tr>
+                  <tr>
+                    <td style="font-weight:700">일간 평균</td>
+                    <td class="amount amount-income" x-text="fmt(monthlySummary().daily.income)"></td>
+                    <td class="amount amount-expense" x-text="fmt(monthlySummary().daily.expense)"></td>
+                    <td class="amount" :class="monthlySummary().daily.net>=0?'amount-income':'amount-expense'" x-text="fmt(monthlySummary().daily.net)"></td>
+                    <td class="amount" style="color:var(--text-muted)">.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <div class="card" style="padding:0;margin-top:12px">
             <table>
-              <thead><tr><th>월</th><th class="amount">수입</th><th class="amount">비용</th><th class="amount">차이</th></tr></thead>
+              <thead><tr><th>월</th><th class="amount">수입</th><th class="amount">비용</th><th class="amount">당기순손익</th><th class="amount">이익률</th></tr></thead>
               <tbody>
                 <template x-for="m in monthly" :key="m.month">
                   <tr>
@@ -862,6 +936,7 @@
                     <td class="amount amount-expense" x-text="fmt(m.expense)"></td>
                     <td class="amount" :class="m.income-m.expense>=0?'amount-income':'amount-expense'"
                         x-text="fmt(m.income - m.expense)"></td>
+                    <td class="amount" x-text="m.income ? (Math.round((m.income-m.expense)/m.income*10000)/100)+'%' : '.'"></td>
                   </tr>
                 </template>
               </tbody>

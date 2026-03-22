@@ -81,11 +81,12 @@ def get_pending_count(db: Session = Depends(get_db)):
 @router.get("/dashboard/monthly", response_model=list[MonthlyRow])
 def get_monthly(
     months: int = Query(6, le=24),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     """Get monthly income and expense totals."""
-    # Income: credit side of income accounts on confirmed entries
-    rows = db.query(
+    q = db.query(
         func.substr(JournalEntry.entry_date, 1, 7).label("month"),
         Account.type,
         func.sum(JournalLine.debit).label("total_debit"),
@@ -96,9 +97,14 @@ def get_monthly(
         JournalEntry.is_confirmed == 1,
         Account.type.in_(["income", "expense"]),
         Account.is_group == 0,
-    ).group_by("month", Account.type
+    )
+    if start:
+        q = q.filter(JournalEntry.entry_date >= start)
+    if end:
+        q = q.filter(JournalEntry.entry_date <= end)
+    rows = q.group_by("month", Account.type
     ).order_by(func.substr(JournalEntry.entry_date, 1, 7).desc()
-    ).limit(months * 2).all()
+    ).all()
 
     monthly = {}
     for row in rows:
@@ -113,7 +119,9 @@ def get_monthly(
         MonthlyRow(month=m, income=v["income"], expense=v["expense"])
         for m, v in sorted(monthly.items(), reverse=True)
     ]
-    return result[:months]
+    if not start and not end:
+        return result[:months]
+    return result
 
 
 @router.get("/dashboard/income-expense")
