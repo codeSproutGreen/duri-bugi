@@ -38,7 +38,8 @@ window.AppMixins.utils = {
   },
   fmtTime(dt) {
     if (!dt) return '';
-    const t = dt.indexOf('T');
+    let t = dt.indexOf('T');
+    if (t < 0) t = dt.indexOf(' ');
     if (t < 0) return '';
     return dt.slice(t + 1, t + 6);
   },
