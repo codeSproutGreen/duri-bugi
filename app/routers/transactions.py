@@ -59,7 +59,28 @@ def list_entries(
     if date_to:
         q = q.filter(JournalEntry.entry_date <= date_to)
     if search:
-        q = q.filter(JournalEntry.description.ilike(f"%{search}%"))
+        from sqlalchemy import or_, and_, not_
+        tokens = search.split()
+        includes = []
+        excludes = []
+        for token in tokens:
+            if token.startswith("-") and len(token) > 1:
+                excludes.append(token[1:])
+            else:
+                includes.append(token)
+        conditions = []
+        for kw in includes:
+            conditions.append(or_(
+                JournalEntry.description.ilike(f"%{kw}%"),
+                JournalEntry.memo.ilike(f"%{kw}%"),
+            ))
+        for kw in excludes:
+            conditions.append(not_(or_(
+                JournalEntry.description.ilike(f"%{kw}%"),
+                JournalEntry.memo.ilike(f"%{kw}%"),
+            )))
+        if conditions:
+            q = q.filter(and_(*conditions))
     if debit_accounts:
         ids = [int(x) for x in debit_accounts.split(",") if x.strip().isdigit()]
         if ids:

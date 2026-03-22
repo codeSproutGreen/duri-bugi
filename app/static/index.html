@@ -341,9 +341,16 @@
 
         <!-- Right: Transaction list -->
         <div class="txn-list">
-          <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-height:32px">
+          <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;min-height:32px;position:relative">
+            <span class="info-tip" @click="showSearchTip=!showSearchTip" title="검색 도움말">i</span>
             <input type="text" placeholder="검색..." x-model="searchQuery"
                    @input.debounce.300ms="loadEntries()" style="max-width:200px;height:32px;box-sizing:border-box">
+            <div class="info-tip-box" x-show="showSearchTip" x-cloak style="position:absolute;top:40px;left:0;z-index:10;width:280px">
+              <strong>검색 사용법</strong><br>
+              <code>스타벅스</code> — 설명·메모에서 검색<br>
+              <code>스타벅스 카드</code> — 두 키워드 모두 포함 (AND)<br>
+              <code>스타벅스 -카드</code> — 스타벅스 포함, 카드 제외
+            </div>
             <div class="group-filter" style="margin-bottom:0;padding:4px 10px;height:32px;box-sizing:border-box">
               <span class="group-filter-label">그룹필터</span>
               <div class="group-filter-chips">
@@ -367,14 +374,19 @@
                         @click="filterShowAllDebit=!filterShowAllDebit"
                         x-text="filterShowAllDebit ? '접기' : '더보기'"></span>
                 </div>
-                <div class="group-filter-chips" style="display:flex;gap:4px;flex-wrap:wrap">
-                  <template x-for="a in bookmarkedAccounts('debit')" :key="a.id">
-                    <label :class="filterDebitIds.includes(a.id) ? 'group-chip group-chip-active' : 'group-chip'"
-                           @click="toggleFilterAcct('debit', a.id)">
-                      <span x-text="a.name"></span>
-                    </label>
-                  </template>
-                </div>
+                <template x-for="bg in bookmarkedAccounts('debit')" :key="bg.type">
+                  <div class="bookmark-group">
+                    <span class="bookmark-group-label" x-text="bg.label"></span>
+                    <div class="group-filter-chips" style="display:flex;gap:4px;flex-wrap:wrap">
+                      <template x-for="a in bg.items" :key="a.id">
+                        <label :class="filterDebitIds.includes(a.id) ? 'group-chip group-chip-active' : 'group-chip'"
+                               @click="toggleFilterAcct('debit', a.id)">
+                          <span x-text="a.name"></span>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
+                </template>
                 <div x-show="filterShowAllDebit" x-cloak style="margin-top:6px;border:1px solid var(--border);border-radius:8px;padding:8px;max-height:220px;overflow-y:auto">
                   <template x-for="t in allGroupedAccounts()" :key="'d_'+t.type">
                     <div style="margin-bottom:2px">
@@ -414,14 +426,19 @@
                         @click="filterShowAllCredit=!filterShowAllCredit"
                         x-text="filterShowAllCredit ? '접기' : '더보기'"></span>
                 </div>
-                <div class="group-filter-chips" style="display:flex;gap:4px;flex-wrap:wrap">
-                  <template x-for="a in bookmarkedAccounts('credit')" :key="a.id">
-                    <label :class="filterCreditIds.includes(a.id) ? 'group-chip group-chip-active' : 'group-chip'"
-                           @click="toggleFilterAcct('credit', a.id)">
-                      <span x-text="a.name"></span>
-                    </label>
-                  </template>
-                </div>
+                <template x-for="bg in bookmarkedAccounts('credit')" :key="bg.type">
+                  <div class="bookmark-group">
+                    <span class="bookmark-group-label" x-text="bg.label"></span>
+                    <div class="group-filter-chips" style="display:flex;gap:4px;flex-wrap:wrap">
+                      <template x-for="a in bg.items" :key="a.id">
+                        <label :class="filterCreditIds.includes(a.id) ? 'group-chip group-chip-active' : 'group-chip'"
+                               @click="toggleFilterAcct('credit', a.id)">
+                          <span x-text="a.name"></span>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
+                </template>
                 <div x-show="filterShowAllCredit" x-cloak style="margin-top:6px;border:1px solid var(--border);border-radius:8px;padding:8px;max-height:220px;overflow-y:auto">
                   <template x-for="t in allGroupedAccounts()" :key="'c_'+t.type">
                     <div style="margin-bottom:2px">
@@ -1484,6 +1501,15 @@
   </div>
 </template>
 
+<script src="/js/utils.js"></script>
+<script src="/js/pin.js"></script>
+<script src="/js/dashboard.js"></script>
+<script src="/js/entries.js"></script>
+<script src="/js/accounts.js"></script>
+<script src="/js/report.js"></script>
+<script src="/js/assets.js"></script>
+<script src="/js/messages.js"></script>
+<script src="/js/settings.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
