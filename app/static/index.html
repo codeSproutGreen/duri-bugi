@@ -504,10 +504,9 @@
               <tbody>
                 <template x-for="e in entries" :key="e.id">
                   <tr @click="selectedEntryId = selectedEntryId === e.id ? null : e.id"
-                      :class="{'row-selected': selectedEntryId === e.id}" style="cursor:pointer"
-                      :title="e.memo ? '메모: ' + e.memo : ''">
-                    <td><span x-text="fmtDate(e.entry_date)"></span><br><span style="font-size:11px;color:var(--text-muted)" x-text="fmtTime(e.created_at)"></span></td>
-                    <td class="td-desc">
+                      :class="{'row-selected': selectedEntryId === e.id}" style="cursor:pointer">
+                    <td :title="e.memo ? '메모: ' + e.memo : ''"><span x-text="fmtDate(e.entry_date)"></span><br><span style="font-size:11px;color:var(--text-muted)" x-text="fmtTime(e.created_at)"></span></td>
+                    <td class="td-desc" :title="e.memo ? '메모: ' + e.memo : ''">
                       <div x-text="e.description" :title="e.description" class="td-desc-text"></div>
                       <div class="mobile-only" x-show="selectedEntryId === e.id" @click.stop
                            style="margin-top:4px;white-space:normal;font-size:11px;color:var(--text-muted)"
@@ -518,9 +517,9 @@
                         <button class="btn btn-sm btn-danger" @click="deleteEntry(e.id)">삭제</button>
                       </div>
                     </td>
-                    <td class="amount" x-text="fmt(Math.max(...e.lines.map(l=>l.debit)))"></td>
-                    <td class="td-acct" x-html="acctWithBadge(e.lines,'debit')"></td>
-                    <td class="td-acct" x-html="acctWithBadge(e.lines,'credit')"></td>
+                    <td class="amount" :title="e.memo ? '메모: ' + e.memo : ''" x-text="fmt(Math.max(...e.lines.map(l=>l.debit)))"></td>
+                    <td class="td-acct" :title="e.memo ? '메모: ' + e.memo : ''" x-html="acctWithBadge(e.lines,'debit')"></td>
+                    <td class="td-acct" :title="e.memo ? '메모: ' + e.memo : ''" x-html="acctWithBadge(e.lines,'credit')"></td>
                     <td class="mobile-hide" style="white-space:nowrap" @click.stop>
                       <button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button>
                       <button class="btn btn-sm btn-danger" @click="deleteEntry(e.id)">삭제</button>
