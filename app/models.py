@@ -134,6 +134,15 @@ class CategoryRule(Base):
     )
 
 
+class TagMemo(Base):
+    __tablename__ = "tag_memos"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tag = Column(Text, nullable=False, unique=True)
+    memo = Column(Text, nullable=False, default="")
+    updated_at = Column(Text, nullable=False, default=lambda: datetime.now().isoformat())
+
+
 class StockPerson(Base):
     __tablename__ = "stock_persons"
 

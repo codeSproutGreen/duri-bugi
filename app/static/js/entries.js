@@ -21,6 +21,7 @@ window.AppMixins.entries = {
   showSearchTip: false,
   editingEntry: {},
   editAmount: 0,
+  editAmountRaw: '',
   editDebitAcct: 0,
   editCreditAcct: 0,
   acctGroupFilter: {},
@@ -66,10 +67,27 @@ window.AppMixins.entries = {
     this.pendingCount = Math.max(0, this.pendingCount - 1);
   },
 
+  parseInstallment(raw) {
+    if (!raw) return null;
+    const m = raw.replace(/,/g, '').match(/^(\d+)\s*\/\s*(\d+)$/);
+    if (!m) return null;
+    const total = Number(m[1]);
+    const months = Number(m[2]);
+    if (!total || months < 2 || months > 60) return null;
+    const monthly = Math.floor(total / months / 100) * 100;
+    const first = total - monthly * (months - 1);
+    return { total, months, monthly, first };
+  },
+
+  installmentInfo() {
+    return this.parseInstallment(this.editAmountRaw);
+  },
+
   newEntry() {
     const today = new Date().toISOString().slice(0, 10);
     this.editingEntry = { id: 0, entry_date: today, description: '', memo: '', lines: [], is_confirmed: 0 };
     this.editAmount = 0;
+    this.editAmountRaw = '';
     this.editDebitAcct = this.allAccounts.find(a => a.type === 'expense' && !a.is_group)?.id || 0;
     this.editCreditAcct = this.allAccounts.find(a => a.type === 'liability' && !a.is_group)?.id || 0;
     this.loadAllAccounts();
@@ -102,25 +120,50 @@ window.AppMixins.entries = {
   },
 
   async quickSaveEntry() {
-    if (!this.editAmount || this.editAmount <= 0) return alert('금액을 입력하세요');
+    const inst = this.installmentInfo();
+    const amount = inst ? inst.total : this.editAmount;
+    if (!amount || amount <= 0) return alert('금액을 입력하세요');
     if (!this.editDebitAcct || !this.editCreditAcct) return alert('계정을 선택하세요');
     if (!this.editingEntry.description) return alert('설명을 입력하세요');
 
-    await this.post('/entries', {
-      entry_date: this.editingEntry.entry_date,
-      description: this.editingEntry.description,
-      memo: this.editingEntry.memo || '',
-      lines: [
-        { account_id: this.editDebitAcct, debit: this.editAmount, credit: 0 },
-        { account_id: this.editCreditAcct, debit: 0, credit: this.editAmount },
-      ],
-    });
+    if (inst) {
+      // 할부: 여러 건 생성
+      const baseDate = new Date(this.editingEntry.entry_date + 'T00:00:00');
+      const baseMemo = this.editingEntry.memo || '';
+      for (let i = 0; i < inst.months; i++) {
+        const d = new Date(baseDate);
+        d.setMonth(d.getMonth() + i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const amt = i === 0 ? inst.first : inst.monthly;
+        const memo = (baseMemo ? baseMemo + ' / ' : '') + `할부 ${i + 1}/${inst.months}`;
+        await this.post('/entries', {
+          entry_date: dateStr,
+          description: this.editingEntry.description,
+          memo,
+          lines: [
+            { account_id: this.editDebitAcct, debit: amt, credit: 0 },
+            { account_id: this.editCreditAcct, debit: 0, credit: amt },
+          ],
+        });
+      }
+    } else {
+      await this.post('/entries', {
+        entry_date: this.editingEntry.entry_date,
+        description: this.editingEntry.description,
+        memo: this.editingEntry.memo || '',
+        lines: [
+          { account_id: this.editDebitAcct, debit: this.editAmount, credit: 0 },
+          { account_id: this.editCreditAcct, debit: 0, credit: this.editAmount },
+        ],
+      });
+    }
 
     const keepDate = this.editingEntry.entry_date;
     const keepDebit = this.editDebitAcct;
     const keepCredit = this.editCreditAcct;
     this.editingEntry = { id: 0, entry_date: keepDate, description: '', memo: '', lines: [], is_confirmed: 0 };
     this.editAmount = 0;
+    this.editAmountRaw = '';
     this.editDebitAcct = keepDebit;
     this.editCreditAcct = keepCredit;
     this.showAcctPicker = null;
@@ -140,6 +183,7 @@ window.AppMixins.entries = {
     await this.loadAllAccounts();
     this.editingEntry = { ...e };
     this.editAmount = e.lines.reduce((s, l) => s + l.debit, 0);
+    this.editAmountRaw = '';
     this.editDebitAcct = e.lines.find(l => l.debit > 0)?.account_id || 0;
     this.editCreditAcct = e.lines.find(l => l.credit > 0)?.account_id || 0;
     this.showEditModal = true;

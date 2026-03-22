@@ -242,12 +242,34 @@
                 <input type="date" x-model="editingEntry.entry_date">
               </div>
               <div class="form-group">
-                <label>금액</label>
+                <label>금액 <span style="font-weight:400;font-size:11px;color:var(--text-muted)">(할부: 금액/개월)</span></label>
                 <input type="text" inputmode="numeric"
-                       :value="editAmount ? editAmount.toLocaleString() : ''"
-                       @input="editAmount = Number($event.target.value.replace(/,/g,'')) || 0"
+                       :value="editAmountRaw || (editAmount ? editAmount.toLocaleString() : '')"
+                       @input="(() => {
+                         const v = $event.target.value;
+                         if (v.includes('/')) {
+                           editAmountRaw = v;
+                           const inst = parseInstallment(v);
+                           editAmount = inst ? inst.total : 0;
+                         } else {
+                           editAmountRaw = '';
+                           editAmount = Number(v.replace(/,/g,'')) || 0;
+                         }
+                       })()"
                        @keydown.enter="quickSaveEntry()"
-                       placeholder="15,000">
+                       placeholder="15,000 또는 2000000/5">
+                <div x-show="installmentInfo()" x-cloak
+                     style="margin-top:4px;padding:6px 10px;background:var(--surface);border-radius:6px;font-size:12px;color:var(--text-muted)">
+                  <template x-if="installmentInfo()">
+                    <div>
+                      <span style="font-weight:600;color:var(--primary)">할부 <span x-text="installmentInfo().months"></span>개월</span>
+                      &mdash; 총 <span x-text="installmentInfo().total.toLocaleString()"></span>원<br>
+                      첫달: <span style="font-weight:600" x-text="installmentInfo().first.toLocaleString()"></span>원,
+                      나머지: <span x-text="installmentInfo().monthly.toLocaleString()"></span>원/월
+                      <span style="font-size:11px;color:var(--text-muted)">(100원 미만 절삭)</span>
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
             <div class="form-group">
@@ -717,6 +739,7 @@
         <div class="tab" :class="reportTab==='trend' && 'active'" @click="reportTab='trend'; $nextTick(()=>drawChart())">자산추이</div>
         <div class="tab" :class="reportTab==='ie' && 'active'" @click="reportTab='ie'">비용수익</div>
         <div class="tab" :class="reportTab==='monthly' && 'active'" @click="reportTab='monthly'">월별</div>
+        <div class="tab" :class="reportTab==='tags' && 'active'" @click="reportTab='tags'; loadTags()">태그</div>
       </div>
 
       <!-- Tab: 자산추이 -->
@@ -844,6 +867,76 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </template>
+
+      <!-- Tab: 태그 -->
+      <template x-if="reportTab==='tags'">
+        <div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+            메모에 <code style="background:var(--surface);padding:2px 6px;border-radius:4px">#태그명</code>을 넣으면 태그별로 모아볼 수 있습니다.
+            예) <code style="background:var(--surface);padding:2px 6px;border-radius:4px">#제주여행</code>
+          </p>
+          <template x-if="tagList.length === 0">
+            <div class="card" style="text-align:center;color:var(--text-muted);padding:32px">
+              이 기간에 태그가 있는 거래가 없습니다.
+            </div>
+          </template>
+          <template x-if="tagList.length > 0">
+            <div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+                <template x-for="t in tagList" :key="t.tag">
+                  <button class="btn btn-sm"
+                          :class="tagSelectedTag === t.tag ? 'btn-primary' : 'btn-outline'"
+                          @click="selectTag(t.tag)"
+                          style="display:flex;align-items:center;gap:6px">
+                    <span x-text="'#' + t.tag"></span>
+                    <span style="font-size:11px;opacity:0.7" x-text="t.count + '건'"></span>
+                    <span style="font-size:11px;font-weight:600" x-text="fmt(t.total)"></span>
+                  </button>
+                </template>
+              </div>
+
+              <template x-if="tagSelectedTag && tagEntries.length > 0">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <h3 style="margin:0;font-size:15px">
+                      <span style="color:var(--primary)">#<span x-text="tagSelectedTag"></span></span>
+                      <span style="color:var(--text-muted);font-size:13px;margin-left:6px"
+                            x-text="tagEntries.length + '건'"></span>
+                    </h3>
+                    <span style="font-size:15px;font-weight:700"
+                          x-text="fmt(tagEntries.reduce((s,e) => s + Math.max(...e.lines.map(l=>l.debit)), 0))"></span>
+                  </div>
+                  <div style="margin-bottom:12px;display:flex;gap:8px;align-items:flex-start">
+                    <textarea x-model="tagMemo" placeholder="태그 메모 (예: 3박4일 제주여행, 숙소는 서귀포)"
+                              rows="2" style="flex:1;resize:vertical;min-height:36px;font-size:13px"
+                              @input.debounce.500ms="saveTagMemo()"></textarea>
+                    <span x-show="tagMemoSaving" style="font-size:11px;color:var(--text-muted);white-space:nowrap;padding-top:8px">저장중...</span>
+                  </div>
+                  <div class="card" style="padding:0;overflow-x:auto">
+                    <table>
+                      <thead><tr><th>날짜</th><th>설명</th><th class="amount">금액</th><th>차변</th><th>대변</th></tr></thead>
+                      <tbody>
+                        <template x-for="e in tagEntries" :key="e.id">
+                          <tr>
+                            <td><span x-text="fmtDate(e.entry_date)"></span><br><span style="font-size:11px;color:var(--text-muted)" x-text="fmtTime(e.created_at)"></span></td>
+                            <td>
+                              <div x-text="e.description"></div>
+                              <div style="font-size:11px;color:var(--text-muted)" x-text="e.memo"></div>
+                            </td>
+                            <td class="amount" x-text="fmt(Math.max(...e.lines.map(l=>l.debit)))"></td>
+                            <td x-html="acctWithBadge(e.lines,'debit')"></td>
+                            <td x-html="acctWithBadge(e.lines,'credit')"></td>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
         </div>
       </template>
 

@@ -1,3 +1,4 @@
+import re
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Query
@@ -5,7 +6,7 @@ from sqlalchemy import func, and_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account, JournalEntry, JournalLine, RawMessage, StockPerson, StockAccount, StockHolding, RealEstate
+from app.models import Account, JournalEntry, JournalLine, RawMessage, StockPerson, StockAccount, StockHolding, RealEstate, TagMemo
 from app.schemas import DashboardOut, AccountBalance, MonthlyRow
 from app.services.ledger import get_account_balance
 
@@ -246,3 +247,77 @@ def get_trend(
         d += timedelta(days=1)
 
     return list(monthly.values())
+
+
+@router.get("/dashboard/tags")
+def get_tags(
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Extract unique #tags from memo fields with aggregated amounts."""
+    q = db.query(JournalEntry).filter(
+        JournalEntry.is_confirmed == 1,
+        JournalEntry.memo.like("%#%"),
+    )
+    if start:
+        q = q.filter(JournalEntry.entry_date >= start)
+    if end:
+        q = q.filter(JournalEntry.entry_date <= end)
+
+    tag_re = re.compile(r"#([^\s#,/]+)")
+    tags: dict[str, dict] = {}
+
+    for entry in q.all():
+        found = tag_re.findall(entry.memo)
+        if not found:
+            continue
+        amount = sum(l.debit for l in entry.lines)
+        for tag in found:
+            if tag not in tags:
+                tags[tag] = {"tag": tag, "count": 0, "total": 0}
+            tags[tag]["count"] += 1
+            tags[tag]["total"] += amount
+
+    result = sorted(tags.values(), key=lambda t: t["total"], reverse=True)
+    return result
+
+
+@router.get("/dashboard/tag-entries")
+def get_tag_entries(
+    tag: str = Query(...),
+    start: str | None = Query(None),
+    end: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Get entries that have a specific #tag in memo."""
+    q = db.query(JournalEntry).filter(
+        JournalEntry.is_confirmed == 1,
+        JournalEntry.memo.like(f"%#{tag}%"),
+    ).order_by(JournalEntry.entry_date.desc())
+    if start:
+        q = q.filter(JournalEntry.entry_date >= start)
+    if end:
+        q = q.filter(JournalEntry.entry_date <= end)
+
+    from app.routers.transactions import _entry_to_out
+    return [_entry_to_out(e) for e in q.all()]
+
+
+@router.get("/dashboard/tag-memo")
+def get_tag_memo(tag: str = Query(...), db: Session = Depends(get_db)):
+    row = db.query(TagMemo).filter(TagMemo.tag == tag).first()
+    return {"tag": tag, "memo": row.memo if row else ""}
+
+
+@router.put("/dashboard/tag-memo")
+def update_tag_memo(tag: str = Query(...), memo: str = Query(""), db: Session = Depends(get_db)):
+    from datetime import datetime
+    row = db.query(TagMemo).filter(TagMemo.tag == tag).first()
+    if row:
+        row.memo = memo
+        row.updated_at = datetime.now().isoformat()
+    else:
+        db.add(TagMemo(tag=tag, memo=memo))
+    db.commit()
+    return {"tag": tag, "memo": memo}

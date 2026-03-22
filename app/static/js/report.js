@@ -13,12 +13,40 @@ window.AppMixins.report = {
   reportShowNetWorth: true,
   _chart: null,
   incExp: { expense: [], income: [], total_expense: 0, total_income: 0, net_income: 0 },
+  tagList: [],
+  tagSelectedTag: null,
+  tagEntries: [],
+  tagMemo: '',
+  tagMemoSaving: false,
 
   async loadReport() {
     this.reportData = await this.get(`/dashboard/trend?start=${this.reportStart}&end=${this.reportEnd}`);
     this.monthly = await this.get('/dashboard/monthly?months=12');
     this.incExp = await this.get(`/dashboard/income-expense?start=${this.reportStart}&end=${this.reportEnd}`);
     this.$nextTick(() => this.drawChart());
+    if (this.reportTab === 'tags') this.loadTags();
+  },
+
+  async loadTags() {
+    this.tagList = await this.get(`/dashboard/tags?start=${this.reportStart}&end=${this.reportEnd}`);
+  },
+
+  async selectTag(tag) {
+    this.tagSelectedTag = tag;
+    await this.loadAllAccounts();
+    const [entries, memoData] = await Promise.all([
+      this.get(`/dashboard/tag-entries?tag=${encodeURIComponent(tag)}&start=${this.reportStart}&end=${this.reportEnd}`),
+      this.get(`/dashboard/tag-memo?tag=${encodeURIComponent(tag)}`),
+    ]);
+    this.tagEntries = entries;
+    this.tagMemo = memoData.memo || '';
+  },
+
+  async saveTagMemo() {
+    if (!this.tagSelectedTag) return;
+    this.tagMemoSaving = true;
+    await this.put(`/dashboard/tag-memo?tag=${encodeURIComponent(this.tagSelectedTag)}&memo=${encodeURIComponent(this.tagMemo)}`);
+    this.tagMemoSaving = false;
   },
 
   ieTree(type) {
