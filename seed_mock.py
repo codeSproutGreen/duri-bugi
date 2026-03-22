@@ -253,9 +253,20 @@ confirmed_txns = [
     ("2026-03-20", "미용실",               [("5015", 20_000, 0), ("2003", 0, 20_000)]),
 ]
 
+MEMO_MAP = {
+    "크리스마스 선물 (옷)": "아내 선물 - 코트",
+    "결혼식 축의금": "대학 동기 김철수",
+    "장례식 조의금": "부장님 부친상",
+    "출장비 정산": "대전 출장 2/25-26 교통+숙박",
+    "교보문고 책 구매": "파이썬 알고리즘 인터뷰",
+    "병원 정기검진": "연말 건강검진",
+    "병원 진료비": "감기 진료",
+    "기타수입 - 중고장터": "당근마켓 모니터 판매",
+    "온통대전 성심당": "명란바게트 2, 튀소 1",
+}
 for date_str, desc, lines_data in confirmed_txns:
     entry = JournalEntry(
-        entry_date=date_str, description=desc, memo="", is_confirmed=1,
+        entry_date=date_str, description=desc, memo=MEMO_MAP.get(desc, ""), is_confirmed=1,
         created_at=datetime.fromisoformat(date_str + "T12:00:00").isoformat(),
         updated_at=datetime.fromisoformat(date_str + "T12:00:00").isoformat(),
     )
