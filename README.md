@@ -1,4 +1,4 @@
-# NotiLedger
+# 두리부기 (duri-bugi)
 
 Android 알림/SMS를 자동으로 복식부기 가계부에 기록하는 셀프호스팅 웹 앱.
 

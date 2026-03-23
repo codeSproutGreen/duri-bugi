@@ -1,16 +1,16 @@
 services:
-  noti-ledger:
+  duri-bugi:
     build: .
-    container_name: noti-ledger
+    container_name: duri-bugi
     restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
-      - noti-data:/data
+      - duri-data:/data
     environment:
       - TZ=Asia/Seoul
     env_file:
       - .env
 
 volumes:
-  noti-data:
+  duri-data:

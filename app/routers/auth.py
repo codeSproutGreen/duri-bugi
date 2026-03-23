@@ -78,8 +78,8 @@ def verify_token(token: str) -> tuple[bool, str]:
         ts = int(ts_str)
     except (ValueError, AttributeError):
         return False, ""
-    # Check expiry (7 days)
-    if time.time() - ts > 7 * 24 * 3600:
+    # Check expiry
+    if time.time() - ts > settings.session_days * 24 * 3600:
         return False, ""
     username = _decode_username(encoded_name)
     expected = _make_token(ts, username)
@@ -168,7 +168,7 @@ async def login(body: PinRequest, request: Request, response: Response):
     response.set_cookie(
         key="noti_session",
         value=token,
-        max_age=7 * 24 * 3600,  # 7 days
+        max_age=settings.session_days * 24 * 3600,
         httponly=True,
         samesite="lax",
     )
