@@ -790,6 +790,8 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
 }
 .pin-logo-img {
   width: 80px; height: 80px; object-fit: contain; margin-bottom: 8px;
+  border: 2px solid var(--border); border-radius: 16px;
+  padding: 6px; background: var(--surface);
 }
 .pin-logo {
   font-size: 28px; font-weight: 800; color: var(--primary);
