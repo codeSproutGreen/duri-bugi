@@ -4,6 +4,28 @@ Android 알림/SMS를 자동으로 복식부기 가계부에 기록하는 셀프
 
 카드 승인, 은행 입출금 알림을 AI(Google Gemini)가 파싱하여 차변/대변 분개를 자동 생성합니다.
 
+## 구조
+
+```
+┌─────────────┐        ┌──────────────────────┐        ┌─────────────┐
+│  Android 폰  │        │   Self-hosted 서버     │        │  Gemini API │
+│             │  Push   │                      │  HTTP  │             │
+│ duri-bugi   ├───────► │  duri-bugi           ├───────►│  AI 파싱     │
+│ -app        │ webhook │  (FastAPI + SQLite)  │◄───────┤  차변/대변   │
+│             │         │                      │        │             │
+└─────────────┘         └──────────┬───────────┘        └─────────────┘
+                                   │
+                                   │ 브라우저
+                                   ▼
+                            ┌─────────────┐
+                            │   웹 UI      │
+                            │  가계부 조회  │
+                            │  검토/승인    │
+                            └─────────────┘
+```
+
+> **필수 요건**: Self-hosted 서버 + Gemini API 키
+
 ## 주요 기능
 
 - **웹훅 수신** — Android 앱에서 카드/은행 알림을 실시간 수신
@@ -55,6 +77,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | `APP_PINS` | N | 멀티유저 PIN (`123456:이름,789012:이름`) |
 | `SESSION_SECRET` | N | 쿠키 서명 시크릿 (기본값 있음) |
 | `WEBHOOK_SECRET` | N | 웹훅 HMAC 검증 시크릿 |
+| `SESSION_DAYS` | N | 세션 유효기간 일수 (기본: `7`) |
 | `DATABASE_URL` | N | DB 경로 (기본: `sqlite:///ledger.db`) |
 
 ## 웹훅 포맷
