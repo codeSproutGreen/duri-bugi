@@ -6,22 +6,12 @@ Android 알림/SMS를 자동으로 복식부기 가계부에 기록하는 셀프
 
 ## 구조
 
-```
-┌─────────────┐        ┌──────────────────────┐        ┌─────────────┐
-│  Android 폰  │        │   Self-hosted 서버     │        │  Gemini API │
-│             │  Push   │                      │  HTTP  │             │
-│ duri-bugi   ├───────► │  duri-bugi           ├───────►│  AI 파싱     │
-│ -app        │ webhook │  (FastAPI + SQLite)  │◄───────┤  차변/대변   │
-│             │         │                      │        │             │
-└─────────────┘         └──────────┬───────────┘        └─────────────┘
-                                   │
-                                   │ 브라우저
-                                   ▼
-                            ┌─────────────┐
-                            │   웹 UI      │
-                            │  가계부 조회  │
-                            │  검토/승인    │
-                            └─────────────┘
+```mermaid
+graph LR
+    A["📱 Android\nduri-bugi-app"] -->|webhook| B["🖥️ Self-hosted 서버\nduri-bugi\n(FastAPI + SQLite)"]
+    B -->|HTTP| C["🤖 Gemini API\nAI 파싱 · 차변/대변"]
+    C -->|응답| B
+    B -->|브라우저| D["🌐 웹 UI\n가계부 조회 · 검토/승인"]
 ```
 
 > **필수 요건**: Self-hosted 서버 + Gemini API 키
