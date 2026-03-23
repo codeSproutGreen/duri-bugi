@@ -22,6 +22,7 @@
 <template x-if="pinRequired && !pinAuthenticated">
   <div class="pin-overlay">
     <div class="pin-box">
+      <img src="/logo.png" alt="두리부기" class="pin-logo-img">
       <div class="pin-logo">두리부기</div>
       <p class="pin-subtitle">부부공동 복식가계부</p>
       <p class="pin-desc">PIN을 입력하세요</p>
@@ -52,7 +53,7 @@
   <aside class="sidebar" :class="sidebarOpen ? 'open' : 'collapsed'">
     <div class="sidebar-header">
       <div class="sidebar-logo" x-show="sidebarOpen">
-        <span class="logo-icon">💰</span>
+        <img src="/logo.png" alt="두리부기" class="logo-icon-img">
         <span class="logo-text">두리부기</span>
       </div>
       <button class="sidebar-toggle" @click="toggleSidebar()" :title="sidebarOpen ? '메뉴 접기' : '메뉴 펼치기'">

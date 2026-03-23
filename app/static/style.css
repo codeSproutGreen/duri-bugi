@@ -280,10 +280,9 @@ a { color: var(--primary); text-decoration: none; }
   padding: 16px; border-bottom: 1px solid var(--border); min-height: 56px;
 }
 .sidebar-logo { display: flex; align-items: center; gap: 10px; }
-.logo-icon {
-  width: 32px; height: 32px; border-radius: 8px;
-  background: var(--primary); display: flex; align-items: center; justify-content: center;
-  font-size: 16px; box-shadow: 0 2px 8px rgba(99,102,241,.3);
+.logo-icon-img {
+  width: 32px; height: 32px; border-radius: 8px; object-fit: contain;
+}
 }
 .logo-text { font-size: 16px; font-weight: 700; letter-spacing: -0.02em; }
 .sidebar-toggle {
@@ -788,6 +787,9 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
 }
 .pin-box {
   text-align: center; width: 320px; padding: 40px 20px;
+}
+.pin-logo-img {
+  width: 80px; height: 80px; object-fit: contain; margin-bottom: 8px;
 }
 .pin-logo {
   font-size: 28px; font-weight: 800; color: var(--primary);
