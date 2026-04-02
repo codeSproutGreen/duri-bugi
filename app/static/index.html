@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>두리부기</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="두리부기">
+  <link rel="apple-touch-icon" href="/logo.png">
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
   <link rel="stylesheet" href="/style.css">
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
@@ -95,7 +102,7 @@
       </a>
     </nav>
     <div class="sidebar-bottom">
-      <a href="#" :class="{ active: page==='messages' }" @click.prevent="page='messages'; loadMessages()"
+      <a href="#" :class="{ active: page==='messages' }" @click.prevent="page='messages'; loadAllAccounts(); loadMessages()"
          :title="sidebarOpen ? '' : '메시지'">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
         <span class="nav-label">메시지</span>
@@ -193,23 +200,42 @@
   <template x-if="page==='review'">
     <div>
       <h1>검토 대기</h1>
+
+      <!-- 배치 액션 바 -->
+      <template x-if="entries.length > 0">
+        <div class="batch-bar">
+          <label class="batch-select-all">
+            <input type="checkbox" :checked="allSelected()" @change="allSelected() ? clearSelection() : selectAllEntries()">
+            <span x-text="selectedEntryIds.length > 0 ? selectedEntryIds.length + '건 선택됨' : '전체 선택'"></span>
+          </label>
+          <button class="btn btn-sm btn-success" :disabled="selectedEntryIds.length === 0"
+                  @click="confirmSelected()">
+            선택 승인
+          </button>
+        </div>
+      </template>
+
       <template x-if="entries.length===0">
         <div class="card" style="text-align:center;color:var(--text-muted);padding:40px">
           검토할 항목이 없습니다
         </div>
       </template>
       <template x-for="e in entries" :key="e.id">
-        <div class="card">
+        <div class="card" :class="isEntrySelected(e.id) ? 'card-selected' : ''" @click.self="toggleSelectEntry(e.id)">
           <div class="card-header">
-            <div>
-              <strong x-text="e.description"></strong>
-              <span style="color:var(--text-muted);margin-left:8px" x-text="fmtDate(e.entry_date)"></span>
-              <span style="color:var(--text-muted);margin-left:6px;font-size:12px" x-text="fmtTime(e.created_at)"></span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="checkbox" :checked="isEntrySelected(e.id)" @change="toggleSelectEntry(e.id)"
+                     style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
+              <div>
+                <strong x-text="e.description"></strong>
+                <span style="color:var(--text-muted);margin-left:8px" x-text="fmtDate(e.entry_date)"></span>
+                <span style="color:var(--text-muted);margin-left:6px;font-size:12px" x-text="fmtTime(e.created_at)"></span>
+              </div>
             </div>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-sm btn-success" @click="confirmEntry(e.id)">승인</button>
-              <button class="btn btn-sm btn-outline" @click="editExistingEntry(e)">수정</button>
-              <button class="btn btn-sm btn-danger" @click="rejectEntry(e.id)">거부</button>
+              <button class="btn btn-sm btn-success" @click.stop="confirmEntry(e.id)">승인</button>
+              <button class="btn btn-sm btn-outline" @click.stop="editExistingEntry(e)">수정</button>
+              <button class="btn btn-sm btn-danger" @click.stop="rejectEntry(e.id)">거부</button>
             </div>
           </div>
           <template x-for="l in e.lines" :key="l.id">
@@ -1407,18 +1433,18 @@
     <div>
       <h1>수신 메시지</h1>
       <div class="tabs" style="margin-bottom:12px">
-        <template x-for="s in [null,'pending','parsed','approved','rejected','failed']" :key="s">
+        <template x-for="s in [null,'pending','parsed','approved','rejected','failed','duplicate']" :key="s">
           <div class="tab" :class="msgFilter===s?'active':''"
                @click="msgFilter=s; loadMessages()"
-               x-text="s||'전체'"></div>
+               x-text="s ? statusKo(s) : '전체'"></div>
         </template>
       </div>
       <template x-for="m in messages" :key="m.id">
         <div class="card">
           <div class="card-header">
-            <div>
+            <div style="display:flex;align-items:center;gap:8px">
               <strong x-text="m.source_name"></strong>
-              <span class="tag" :class="'tag-'+m.status" x-text="m.status" style="margin-left:8px"></span>
+              <span class="tag" :class="'tag-'+m.status" x-text="statusKo(m.status)"></span>
             </div>
             <div style="display:flex;gap:6px;align-items:center">
               <span style="font-size:12px;color:var(--text-muted)" x-text="fmtTimestamp(m.timestamp)"></span>
@@ -1426,9 +1452,47 @@
             </div>
           </div>
           <div class="raw-msg" x-text="m.content"></div>
-          <div x-show="m.ai_result" style="margin-top:6px;font-size:12px;color:var(--text-muted)"
-               x-text="m.ai_result"></div>
+
+          <!-- AI 파싱 결과 -->
+          <template x-if="parseAiResult(m.ai_result)">
+            <div class="msg-ai-result" x-data="{ r: parseAiResult(m.ai_result) }">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <!-- 신뢰도 -->
+                <span class="msg-confidence" :class="confidenceClass(r.confidence)"
+                      x-text="'신뢰도 ' + Math.round(r.confidence * 100) + '%'"></span>
+                <!-- 거래 유형 -->
+                <span class="tag tag-parsed" x-text="txnTypeLabel(r.transaction_type)"></span>
+                <!-- 금액 -->
+                <template x-if="r.amount">
+                  <strong style="font-size:14px" x-text="'₩' + r.amount.toLocaleString()"></strong>
+                </template>
+                <!-- 가맹점 -->
+                <template x-if="r.merchant">
+                  <span style="color:var(--text-secondary)" x-text="r.merchant"></span>
+                </template>
+              </div>
+              <!-- 계정 매핑 -->
+              <template x-if="r.suggested_debit_code || r.suggested_credit_code">
+                <div class="msg-account-map">
+                  <span class="msg-account debit" x-text="acctName(r.suggested_debit_code)"></span>
+                  <span style="color:var(--text-muted)">→</span>
+                  <span class="msg-account credit" x-text="acctName(r.suggested_credit_code)"></span>
+                  <template x-if="r.memo">
+                    <span style="font-size:11px;color:var(--text-muted)" x-text="r.memo"></span>
+                  </template>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- 파싱 실패 -->
+          <template x-if="m.status === 'failed' && !parseAiResult(m.ai_result)">
+            <div class="msg-failed">AI 파싱 실패 — 재파싱을 시도하거나 수동으로 입력하세요</div>
+          </template>
         </div>
+      </template>
+      <template x-if="messages.length === 0">
+        <p style="color:var(--text-muted);text-align:center;padding:32px 0">메시지가 없습니다</p>
       </template>
     </div>
   </template>
@@ -1701,5 +1765,11 @@
 <script src="/js/messages.js"></script>
 <script src="/js/settings.js"></script>
 <script src="/app.js"></script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js');
+  }
+</script>
 </body>
 </html>

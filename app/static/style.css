@@ -839,3 +839,74 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
 .pin-key-submit:hover:not(:disabled) { opacity: 0.85; background: var(--primary); }
 
 [x-cloak] { display: none !important; }
+
+/* ── Batch action bar ── */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.batch-select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+.batch-select-all input { cursor: pointer; }
+.card-selected {
+  border-color: var(--primary) !important;
+  background: var(--primary-bg) !important;
+}
+
+/* ── Messages AI Result ── */
+.msg-ai-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.04);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.msg-confidence {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.confidence-high { background: rgba(16,185,129,.15); color: var(--success); }
+.confidence-mid  { background: rgba(245,158,11,.15);  color: var(--warning); }
+.confidence-low  { background: rgba(239,68,68,.15);   color: var(--danger); }
+
+.msg-account-map {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.msg-account {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+.msg-account.debit  { background: rgba(99,102,241,.15); color: var(--primary); }
+.msg-account.credit { background: rgba(16,185,129,.12); color: var(--success); }
+
+.msg-failed {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--danger);
+  padding: 6px 10px;
+  background: rgba(239,68,68,.08);
+  border-radius: 6px;
+}

@@ -12,6 +12,7 @@ window.AppMixins.entries = {
   bookmarkedDebitIds: JSON.parse(localStorage.getItem('bookmarkedDebitIds') || '[]'),
   bookmarkedCreditIds: JSON.parse(localStorage.getItem('bookmarkedCreditIds') || '[]'),
   _lastConfirmed: null,
+  selectedEntryIds: [],
 
   showEditModal: false,
   selectedEntryId: null,
@@ -25,6 +26,39 @@ window.AppMixins.entries = {
   editDebitAcct: 0,
   editCreditAcct: 0,
   acctGroupFilter: {},
+
+  toggleSelectEntry(id) {
+    const idx = this.selectedEntryIds.indexOf(id);
+    if (idx >= 0) this.selectedEntryIds.splice(idx, 1);
+    else this.selectedEntryIds.push(id);
+  },
+
+  isEntrySelected(id) {
+    return this.selectedEntryIds.includes(id);
+  },
+
+  selectAllEntries() {
+    this.selectedEntryIds = this.entries.map(e => e.id);
+  },
+
+  clearSelection() {
+    this.selectedEntryIds = [];
+  },
+
+  allSelected() {
+    return this.entries.length > 0 && this.selectedEntryIds.length === this.entries.length;
+  },
+
+  async confirmSelected() {
+    const ids = [...this.selectedEntryIds];
+    this.selectedEntryIds = [];
+    for (const id of ids) {
+      await this.post(`/entries/${id}/confirm`);
+    }
+    this.entries = this.entries.filter(e => !ids.includes(e.id));
+    this.pendingCount = Math.max(0, this.pendingCount - ids.length);
+    this.loadDashboard();
+  },
 
   async loadEntries(confirmed) {
     if (confirmed !== null && confirmed !== undefined) this._lastConfirmed = confirmed;

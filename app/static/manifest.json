@@ -1,0 +1,24 @@
+{
+  "name": "두리부기",
+  "short_name": "두리부기",
+  "description": "부부공동 복식가계부",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
