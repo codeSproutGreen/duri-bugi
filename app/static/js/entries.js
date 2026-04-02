@@ -93,24 +93,17 @@ window.AppMixins.entries = {
     this.loadAllAccounts();
   },
 
-  entryDisplayAmount(e) {
-    const isCancel = /취소/.test(e.description || '') || /취소/.test(e.memo || '') || /취소/.test(e.raw_content || '');
-    const amount = Math.max(...e.lines.map(l => l.debit));
-    return isCancel ? -amount : amount;
-  },
-
   async saveEntry() {
-    if (!this.editAmount) return alert('금액을 입력하세요');
+    if (!this.editAmount || this.editAmount <= 0) return alert('금액을 입력하세요');
     if (!this.editDebitAcct || !this.editCreditAcct) return alert('계정을 선택하세요');
 
-    const amt = Math.abs(this.editAmount);
     const data = {
       entry_date: this.editingEntry.entry_date,
       description: this.editingEntry.description,
       memo: this.editingEntry.memo || '',
       lines: [
-        { account_id: this.editDebitAcct, debit: amt, credit: 0 },
-        { account_id: this.editCreditAcct, debit: 0, credit: amt },
+        { account_id: this.editDebitAcct, debit: this.editAmount, credit: 0 },
+        { account_id: this.editCreditAcct, debit: 0, credit: this.editAmount },
       ],
     };
 
@@ -128,8 +121,8 @@ window.AppMixins.entries = {
 
   async quickSaveEntry() {
     const inst = this.installmentInfo();
-    const amount = inst ? inst.total : Math.abs(this.editAmount);
-    if (!amount) return alert('금액을 입력하세요');
+    const amount = inst ? inst.total : this.editAmount;
+    if (!amount || amount <= 0) return alert('금액을 입력하세요');
     if (!this.editDebitAcct || !this.editCreditAcct) return alert('계정을 선택하세요');
     if (!this.editingEntry.description) return alert('설명을 입력하세요');
 
@@ -154,14 +147,13 @@ window.AppMixins.entries = {
         });
       }
     } else {
-      const absAmt = Math.abs(this.editAmount);
       await this.post('/entries', {
         entry_date: this.editingEntry.entry_date,
         description: this.editingEntry.description,
         memo: this.editingEntry.memo || '',
         lines: [
-          { account_id: this.editDebitAcct, debit: absAmt, credit: 0 },
-          { account_id: this.editCreditAcct, debit: 0, credit: absAmt },
+          { account_id: this.editDebitAcct, debit: this.editAmount, credit: 0 },
+          { account_id: this.editCreditAcct, debit: 0, credit: this.editAmount },
         ],
       });
     }
@@ -205,9 +197,7 @@ window.AppMixins.entries = {
   async editExistingEntry(e) {
     await this.loadAllAccounts();
     this.editingEntry = { ...e };
-    const debit = e.lines.reduce((s, l) => s + l.debit, 0);
-    const isCancel = /취소/.test(e.description || '') || /취소/.test(e.memo || '') || /취소/.test(e.raw_content || '');
-    this.editAmount = isCancel ? -debit : debit;
+    this.editAmount = e.lines.reduce((s, l) => s + l.debit, 0);
     this.editAmountRaw = '';
     this.editDebitAcct = e.lines.find(l => l.debit > 0)?.account_id || 0;
     this.editCreditAcct = e.lines.find(l => l.credit > 0)?.account_id || 0;

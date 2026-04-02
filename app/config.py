@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     session_secret: str = "duri-bugi-session-secret"  # secret for signing cookies
     session_days: int = 7  # session expiry in days
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 
 settings = Settings()
