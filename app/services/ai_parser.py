@@ -12,7 +12,7 @@ SYSTEM_PROMPT = """You are a Korean financial message parser. Extract transactio
 
 Return ONLY valid JSON (no markdown, no explanation) with this EXACT structure — ALL fields are REQUIRED:
 {
-  "transaction_type": "card_payment" | "bank_transfer" | "deposit" | "withdrawal" | "unknown",
+  "transaction_type": "card_payment" | "bank_transfer" | "deposit" | "withdrawal" | "cancellation" | "unknown",
   "amount": <integer, KRW, 0 if unknown>,
   "merchant": "<가맹점/상대방 name, empty string if unknown>",
   "card_or_account": "<카드/계좌 name extracted from message>",
@@ -34,6 +34,14 @@ CRITICAL RULES for suggested_debit_code and suggested_credit_code:
 - IMPORTANT: When device_name is provided, prefer accounts under the matching person/group. Each person has their own bank/card accounts under their group (shown as [그룹:name] in the account list). Match device_name to the right person's group.
 - For 온통대전 체크카드 messages: credit account should be the "온통대전(충전액)" account under the matching person's group. The debit should be the appropriate expense account (e.g. 식비 for restaurants).
 - If [Past Transactions] show same merchant mapped to specific accounts, use the same accounts
+
+CANCELLATION RULES (승인취소, 결제취소, 거래취소 등):
+- Set transaction_type to "cancellation"
+- This is a reversing entry: SWAP debit/credit compared to the original purchase
+- Look up the same merchant in [Past Transactions] to find the original debit/credit accounts, then reverse them
+  - e.g. original was debit:5001(식비) credit:2003(신한카드) → cancellation: debit:2003(신한카드) credit:5001(식비)
+- If no history found for the merchant, use: debit=해당 카드/계좌 계정 code, credit=비용 계정 code
+
 - Amount must be integer (Korean Won)
 - For date, infer year as current year if only MM/DD given
 - If cannot parse, set transaction_type to "unknown"
