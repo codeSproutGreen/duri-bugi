@@ -33,6 +33,103 @@ _ONTONG_RE = re.compile(
     r'온통대전\s*체크카드.*?승인\s*([\d,]+)\s*원\s*캐시백적립\s*([\d,]+)\s*원\s*'
     r'(\d{2}/\d{2})\s*\d{2}:\d{2}\s*(.+?)\s*잔액'
 )
+_ONTONG_CANCEL_RE = re.compile(
+    r'온통대전\s*체크카드.*?승인취소\s*([\d,]+)\s*원\s*캐시백적립취소\s*([\d,]+)\s*원\s*'
+    r'(\d{2}/\d{2})\s*\d{2}:\d{2}\s*(.+?)\s*잔액'
+)
+
+
+def _handle_ontong_cancel(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
+    """Handle 온통대전 체크카드 승인취소 SMS — creates 2 reversing entries (purchase + cashback)."""
+    m = _ONTONG_CANCEL_RE.search(msg.content)
+    if not m:
+        return None
+
+    amount = int(m.group(1).replace(",", ""))
+    cashback = int(m.group(2).replace(",", ""))
+    date_mm_dd = m.group(3)
+    merchant = m.group(4).strip()
+
+    year = datetime.now().year
+    month, day = date_mm_dd.split("/")
+    entry_date = f"{year}-{month}-{day}"
+
+    device_name = getattr(msg, "device_name", "") or ""
+
+    # 계좌 조회: charge_acct → parent 기준으로 같은 그룹의 cashback_acct 찾기
+    charge_acct = find_account_by_name(db, "온통대전(충전액)")
+    cashback_acct = None
+    if charge_acct and charge_acct.parent_id:
+        cashback_acct = find_account_by_name(db, "온통대전(캐시백)", parent_id=charge_acct.parent_id)
+    if not cashback_acct:
+        cashback_acct = find_account_by_name(db, "온통대전(캐시백)")
+
+    cb_income = find_account_by_name(db, "캐시백수입")
+    if not cb_income:
+        cb_income = find_account_by_type(db, "income")
+
+    # 원거래 비용 계정: 히스토리에서 같은 가맹점 온통대전 항목 조회, 없으면 기본 비용 계정
+    expense_acct = None
+    from app.models import JournalEntry as JE, JournalLine as JL
+    original = (
+        db.query(JE)
+        .filter(JE.description == merchant, JE.memo == "온통대전 체크카드", JE.is_confirmed == 1)
+        .order_by(JE.id.desc())
+        .first()
+    )
+    if original:
+        debit_line = next((l for l in original.lines if l.debit > 0 and l.account.type == "expense"), None)
+        if debit_line:
+            expense_acct = debit_line.account
+    if not expense_acct:
+        expense_acct = find_account_by_type(db, "expense")
+
+    if not expense_acct or not charge_acct:
+        log.warning("온통대전 취소: expense or 충전액 account not found")
+        return None
+
+    msg_time = _msg_created_at(msg)
+    entries = []
+
+    # 역분개 1: 매입 취소 (차변=충전액, 대변=비용)
+    e1 = JournalEntry(
+        entry_date=entry_date, description=f"{merchant} 승인취소",
+        memo="온통대전 승인취소",
+        raw_message_id=msg.id, source="webhook", is_confirmed=0,
+        created_at=msg_time,
+    )
+    db.add(e1)
+    db.flush()
+    db.add(JournalLine(entry_id=e1.id, account_id=charge_acct.id, debit=amount, credit=0))
+    db.add(JournalLine(entry_id=e1.id, account_id=expense_acct.id, debit=0, credit=amount))
+    entries.append(e1)
+
+    # 역분개 2: 캐시백 적립 취소 (차변=캐시백수입, 대변=캐시백)
+    if cashback > 0 and cashback_acct and cb_income:
+        e2 = JournalEntry(
+            entry_date=entry_date, description=f"캐시백 취소 - {merchant}",
+            memo="온통대전 캐시백적립취소",
+            raw_message_id=msg.id, source="webhook", is_confirmed=0,
+            created_at=msg_time,
+        )
+        db.add(e2)
+        db.flush()
+        db.add(JournalLine(entry_id=e2.id, account_id=cb_income.id, debit=cashback, credit=0))
+        db.add(JournalLine(entry_id=e2.id, account_id=cashback_acct.id, debit=0, credit=cashback))
+        entries.append(e2)
+
+    msg.status = "parsed"
+    msg.ai_result = json.dumps({
+        "source": "ontong_cancel", "amount": amount, "cashback": cashback,
+        "merchant": merchant, "date": entry_date,
+        "charge_account": charge_acct.code,
+        "cashback_account": cashback_acct.code if cashback_acct else None,
+    }, ensure_ascii=False)
+    db.commit()
+
+    log.info("온통대전 취소: %s %d원, 캐시백취소 %d원 → %d entries (device=%s)",
+             merchant, amount, cashback, len(entries), device_name)
+    return entries
 
 
 def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
@@ -133,7 +230,11 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
 def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
     """Process a raw message: check rules, then AI parse, create journal entry."""
 
-    # 0. Special handlers (온통대전 etc.)
+    # 0. Special handlers (온통대전 etc.) — 취소 먼저 체크
+    ontong_result = _handle_ontong_cancel(db, msg)
+    if ontong_result is not None:
+        return ontong_result[0] if ontong_result else None
+
     ontong_result = _handle_ontong(db, msg)
     if ontong_result is not None:
         return ontong_result[0] if ontong_result else None
