@@ -204,6 +204,7 @@
             <div>
               <strong x-text="e.description"></strong>
               <span style="color:var(--text-muted);margin-left:8px" x-text="fmtDate(e.entry_date)"></span>
+              <span style="color:var(--text-muted);margin-left:6px;font-size:12px" x-text="fmtTime(e.created_at)"></span>
             </div>
             <div style="display:flex;gap:6px">
               <button class="btn btn-sm btn-success" @click="confirmEntry(e.id)">승인</button>
