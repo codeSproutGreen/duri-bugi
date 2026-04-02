@@ -1,6 +1,6 @@
 {
-  "name": "두리부기",
-  "short_name": "두리부기",
+  "name": "두리부기 웹",
+  "short_name": "두리부기 웹",
   "description": "부부공동 복식가계부",
   "start_url": "/",
   "display": "standalone",
