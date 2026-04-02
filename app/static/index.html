@@ -245,25 +245,31 @@
               </div>
               <div class="form-group">
                 <label>금액 <span style="font-weight:400;font-size:11px;color:var(--text-muted)">(할부: 금액/개월)</span></label>
-                <input type="text" inputmode="numeric" x-ref="amountInput"
-                       :value="editAmountRaw ? editAmountRaw.replace(/^[\d,]+/, m => Number(m.replace(/,/g,'')).toLocaleString()) : (editAmount ? editAmount.toLocaleString() : '')"
+                <input type="text" inputmode="text" x-ref="amountInput"
+                       :value="editAmountRaw ? (() => {
+                         if (editAmountRaw.includes('/')) return editAmountRaw.replace(/^[\d,]+/, m => Number(m.replace(/,/g,'')).toLocaleString());
+                         const neg = editAmountRaw.startsWith('-');
+                         const digits = editAmountRaw.replace(/^-/, '');
+                         return digits && !isNaN(Number(digits)) ? (neg?'-':'')+Number(digits).toLocaleString('ko-KR') : editAmountRaw;
+                       })() : ''"
                        @input="(() => {
                          const el = $refs.amountInput;
                          const pos = el.selectionStart;
                          const oldLen = el.value.length;
                          const v = $event.target.value;
-                         if (v.includes('/')) {
-                           editAmountRaw = v.replace(/,/g,'');
-                           const inst = parseInstallment(v);
+                         const raw = v.replace(/,/g,'');
+                         editAmountRaw = raw;
+                         if (raw.includes('/')) {
+                           const inst = parseInstallment(raw);
                            editAmount = inst ? inst.total : 0;
                          } else {
-                           editAmountRaw = '';
-                           editAmount = Number(v.replace(/,/g,'')) || 0;
+                           const n = Number(raw);
+                           editAmount = (raw && !isNaN(n)) ? n : 0;
                          }
                          $nextTick(() => { const diff = el.value.length - oldLen; el.setSelectionRange(pos + diff, pos + diff); });
                        })()"
                        @keydown.enter="quickSaveEntry()"
-                       placeholder="15,000 또는 2000000/5">
+                       placeholder="15,000 또는 -15,000 또는 2000000/5">
                 <div x-show="installmentInfo()" x-cloak
                      style="margin-top:4px;padding:6px 10px;background:var(--surface);border-radius:6px;font-size:12px;color:var(--text-muted)">
                   <template x-if="installmentInfo()">
@@ -519,7 +525,7 @@
                         <button class="btn btn-sm btn-danger" @click="deleteEntry(e.id)">삭제</button>
                       </div>
                     </td>
-                    <td class="amount" :title="e.memo ? '메모: ' + e.memo : ''" x-text="fmt(Math.max(...e.lines.map(l=>l.debit)))"></td>
+                    <td class="amount" :title="e.memo ? '메모: ' + e.memo : ''" x-text="fmt(entryDisplayAmount(e))"></td>
                     <td class="td-acct" :title="e.memo ? '메모: ' + e.memo : ''" x-html="acctWithBadge(e.lines,'debit')"></td>
                     <td class="td-acct" :title="e.memo ? '메모: ' + e.memo : ''" x-html="acctWithBadge(e.lines,'credit')"></td>
                     <td class="mobile-hide" style="white-space:nowrap" @click.stop>
@@ -1001,7 +1007,7 @@
                             x-text="tagEntries.length + '건'"></span>
                     </h3>
                     <span style="font-size:15px;font-weight:700"
-                          x-text="fmt(tagEntries.reduce((s,e) => s + Math.max(...e.lines.map(l=>l.debit)), 0))"></span>
+                          x-text="fmt(tagEntries.reduce((s,e) => s + entryDisplayAmount(e), 0))"></span>
                   </div>
                   <div style="margin-bottom:12px;display:flex;gap:8px;align-items:flex-start">
                     <textarea x-model="tagMemo" placeholder="태그 메모 (예: 3박4일 제주여행, 숙소는 서귀포)"
@@ -1020,7 +1026,7 @@
                               <div x-text="e.description"></div>
                               <div style="font-size:11px;color:var(--text-muted)" x-text="e.memo"></div>
                             </td>
-                            <td class="amount" x-text="fmt(Math.max(...e.lines.map(l=>l.debit)))"></td>
+                            <td class="amount" x-text="fmt(entryDisplayAmount(e))"></td>
                             <td x-html="acctWithBadge(e.lines,'debit')"></td>
                             <td x-html="acctWithBadge(e.lines,'credit')"></td>
                           </tr>
@@ -1547,10 +1553,10 @@
         <div>
       <div class="form-group">
         <label>금액</label>
-        <input type="text" inputmode="numeric"
-               :value="editAmount ? editAmount.toLocaleString() : ''"
-               @input="editAmount = Number($event.target.value.replace(/,/g,'')) || 0"
-               placeholder="15,000">
+        <input type="text" inputmode="text"
+               :value="editAmountRaw ? (() => { const neg = editAmountRaw.startsWith('-'); const digits = editAmountRaw.replace(/^-/, ''); return digits && !isNaN(Number(digits)) ? (neg?'-':'')+Number(digits).toLocaleString('ko-KR') : editAmountRaw; })() : (editAmount ? editAmount.toLocaleString() : '')"
+               @input="(() => { const raw = $event.target.value.replace(/,/g,''); editAmountRaw = raw; const n = Number(raw); editAmount = (raw && !isNaN(n)) ? n : 0; })()"
+               placeholder="15,000 또는 -15,000">
       </div>
       <div class="form-row">
         <div class="form-group">
