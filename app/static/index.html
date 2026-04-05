@@ -74,13 +74,13 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         <span class="nav-label">대시보드</span>
       </a>
-      <a href="#" :class="{ active: page==='review' }" @click.prevent="page='review'; loadEntries(0)"
+      <a href="#" :class="{ active: page==='review' }" @click.prevent="page='review'; searchQuery=''; filterDebitIds=[]; filterCreditIds=[]; loadEntries(0)"
          :title="sidebarOpen ? '' : '검토 대기'">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
         <span class="nav-label">검토 대기</span>
         <span class="badge" x-show="pendingCount > 0 && sidebarOpen" x-text="pendingCount"></span>
       </a>
-      <a href="#" :class="{ active: page==='transactions' }" @click.prevent="page='transactions'; newEntry(); loadEntries(1)"
+      <a href="#" :class="{ active: page==='transactions' }" @click.prevent="page='transactions'; searchQuery=''; filterDebitIds=[]; filterCreditIds=[]; newEntry(); loadEntries(1)"
          :title="sidebarOpen ? '' : '거래 내역'">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
         <span class="nav-label">거래 내역</span>
