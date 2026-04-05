@@ -91,6 +91,7 @@ window.AppMixins.entries = {
   async confirmEntry(id) {
     await this.post(`/entries/${id}/confirm`);
     this.entries = this.entries.filter(e => e.id !== id);
+    this.selectedEntryIds = this.selectedEntryIds.filter(i => i !== id);
     this.pendingCount = Math.max(0, this.pendingCount - 1);
     this.loadDashboard();
   },
@@ -98,6 +99,7 @@ window.AppMixins.entries = {
   async rejectEntry(id) {
     await this.post(`/entries/${id}/reject`);
     this.entries = this.entries.filter(e => e.id !== id);
+    this.selectedEntryIds = this.selectedEntryIds.filter(i => i !== id);
     this.pendingCount = Math.max(0, this.pendingCount - 1);
   },
 

@@ -230,7 +230,15 @@ def _handle_ontong(db: Session, msg: RawMessage) -> list[JournalEntry] | None:
 def process_message(db: Session, msg: RawMessage) -> JournalEntry | None:
     """Process a raw message: check rules, then AI parse, create journal entry."""
 
-    # 0. Special handlers (온통대전 etc.) — 취소 먼저 체크
+    # 0-a. Auto-reject corporate messages
+    if re.search(r"기업공용|법인카드|법인계좌", msg.content):
+        msg.status = "rejected"
+        msg.ai_result = json.dumps({"reason": "법인/기업공용 자동 거절"}, ensure_ascii=False)
+        db.commit()
+        log.info("Auto-rejected corporate message: %s", msg.id)
+        return None
+
+    # 0-b. Special handlers (온통대전 etc.) — 취소 먼저 체크
     ontong_result = _handle_ontong_cancel(db, msg)
     if ontong_result is not None:
         return ontong_result[0] if ontong_result else None

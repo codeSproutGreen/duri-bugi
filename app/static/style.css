@@ -858,7 +858,6 @@ input[type="checkbox"] { width: auto; accent-color: var(--primary); }
   cursor: pointer;
   font-size: 13px;
   color: var(--text-secondary);
-  flex: 1;
 }
 .batch-select-all input { cursor: pointer; }
 .card-selected {
